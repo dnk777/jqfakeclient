@@ -1,0 +1,1 @@
+Java (Android) bindings for [libqfakeclient](https://github.com/dnk777/libqfakeclient), a library for implementing fake clients for the [Qfusion engine](https://github.com/Qfusion/qfusion).

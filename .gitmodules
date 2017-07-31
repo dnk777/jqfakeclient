@@ -1,0 +1,3 @@
+[submodule "libqfakeclient"]
+	path = libqfakeclient
+	url = https://github.com/dnk777/libqfakeclient.git

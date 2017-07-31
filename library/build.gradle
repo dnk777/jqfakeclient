@@ -1,0 +1,83 @@
+apply plugin: 'com.android.library'
+
+android {
+    compileSdkVersion 25
+    buildToolsVersion "25.0.2"
+    defaultConfig {
+        minSdkVersion 15
+        targetSdkVersion 25
+        versionCode 1
+        versionName "1.0"
+        project.archivesBaseName = "jqfakeclient"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++11 -g -fno-omit-frame-pointer"
+            }
+        }
+    }
+    compileOptions.incremental = false
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path "CMakeLists.txt"
+        }
+    }
+}
+
+def callJavah(Exec task, String classpath) {
+    File outputFile = file("$buildDir/generated/jni_headers/jqfakeclient.h")
+    String[] jniClasses = [
+            "com.github.qfusion.fakeclient.System",
+            "com.github.qfusion.fakeclient.Client"
+    ]
+    task.inputs.files classpath
+    task.inputs.property("classes", jniClasses)
+    task.outputs.file outputFile
+
+    if (!file(classpath).exists()) {
+        return
+    }
+
+    outputFile.parentFile.mkdirs()
+    exec {
+        executable "javah"
+        args "-o", outputFile
+        args "-classpath", classpath
+        args jniClasses
+    }
+}
+
+task generateDebugJniHeaders(type: Exec) {
+    callJavah(it, "$buildDir/intermediates/classes/debug")
+}
+
+task generateReleaseJniHeaders(type: Exec) {
+    callJavah(it, "$buildDir/intermediates/classes/release")
+}
+
+tasks.withType(CppCompile) { task->
+    String lowercaseName = task.name.toLowerCase()
+    if (lowercaseName.contains("debug")) {
+        task.dependsOn generateDebugJniHeaders
+    } else if (lowercaseName.contains("release")) {
+        task.dependsOn generateReleaseJniHeaders
+    } else {
+        task
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    androidTestCompile 'com.android.support:support-annotations:25.3.1'
+    androidTestCompile 'com.android.support.test:runner:0.5'
+    androidTestCompile 'com.android.support.test:rules:0.5'
+    //compile 'com.android.support:appcompat-v7:25.3.1'
+    testCompile 'junit:junit:4.12'
+}
