@@ -1,6 +1,6 @@
 package com.github.qfusion.fakeclient;
 
-public abstract class ColoredTokensFactory<T extends ColoredToken> {
+abstract class ColoredTokensFactory<T extends ColoredToken> {
     public abstract T newToken(CharSequence underlying, int offset, int length, Color color);
     public abstract T newToken(String underlying, int offset, int length, Color color);
 

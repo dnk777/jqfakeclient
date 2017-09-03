@@ -3,7 +3,7 @@ package com.github.qfusion.fakeclient;
 /**
  * A Qfusion console character color.
  */
-public enum Color {
+enum Color {
     BLACK(0, 0, 0, 0),
     RED(1, 255, 0, 0),
     GREEN(2, 0, 255, 0),

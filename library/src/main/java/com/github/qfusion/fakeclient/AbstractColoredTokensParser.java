@@ -1,22 +1,27 @@
 package com.github.qfusion.fakeclient;
 
 /**
- * Extracts {@link ColoredToken}'s from a given {@link String} or a {@link CharSequence}.
+ * Extracts colored parts from a given {@link String} or a {@link CharSequence}.
+ * A part starts by a circumflex character followed by a digit.
+ * Other circumflex-containing escape sequences are illegal, except a double circumflex yielding a circumflex itself.
+ * There is a mapping from digits to 10 predefined colors in the Qfusion engine.
  */
 public abstract class AbstractColoredTokensParser {
     /**
      * Should be overridden in a subclass if one needs extended tokens
      */
-    protected abstract void addWrappedToken(CharSequence underlying, int startIndex, int length, Color color);
+    protected abstract void addWrappedToken(CharSequence underlying, int startIndex, int length, byte colorNum);
 
     /**
      * Should be overridden in a subclass if one needs extended tokens
      */
-    protected abstract void addWrappedToken(String underlying, int startIndex, int length, Color color);
+    protected abstract void addWrappedToken(String underlying, int startIndex, int length, byte colorNum);
 
     public final void parse(CharSequence input) {
         parse0(input, 0, input.length());
     }
+
+    protected static final byte COLOR_WHITE = 7;
 
     public final void parse(CharSequence input, int offset, int length) {
         int inputLength = input.length();
@@ -55,7 +60,8 @@ public abstract class AbstractColoredTokensParser {
      * Note that it is not optimal but we won't complicate the parser code for this normally rare case.
      * @return A new or modified {@link StringBuilder} that acts as token chars buffer.
      */
-    private StringBuilder addCopiedToken(StringBuilder charsBuffer, CharSequence input, int offset, int length, Color color) {
+    private StringBuilder addCopiedToken(StringBuilder charsBuffer, CharSequence input,
+                                         int offset, int length, byte colorNum) {
         int startBufferOffset = 0;
         if (charsBuffer == null) {
             charsBuffer = new StringBuilder(input.length() - offset);
@@ -83,16 +89,16 @@ public abstract class AbstractColoredTokensParser {
             i++;
         }
 
-        addWrappedToken(charsBuffer, startBufferOffset, resultLength, color);
+        addWrappedToken(charsBuffer, startBufferOffset, resultLength, colorNum);
         return charsBuffer;
     }
 
     /**
-     * A specialized version of {@link AbstractColoredTokensParser#addCopiedToken(StringBuilder, CharSequence, int, int, Color)}.
+     * A specialized version of {@link AbstractColoredTokensParser#addCopiedToken(StringBuilder, CharSequence, int, int, byte)}.
      * The difference is in avoiding char-wise operations
      * and preferring builtin {@link String} methods for fast search.
      */
-    private StringBuilder addCopiedToken(StringBuilder charsBuffer, String input, int offset, int length, Color color) {
+    private StringBuilder addCopiedToken(StringBuilder charsBuffer, String input, int offset, int length, byte colorNum) {
         int startBufferOffset = 0;
         if (charsBuffer == null) {
             charsBuffer = new StringBuilder(input.length() - offset);
@@ -140,7 +146,7 @@ public abstract class AbstractColoredTokensParser {
             break;
         }
 
-        addWrappedToken(charsBuffer, startBufferOffset, resultLength, color);
+        addWrappedToken(charsBuffer, startBufferOffset, resultLength, colorNum);
         return charsBuffer;
     }
 
@@ -157,7 +163,7 @@ public abstract class AbstractColoredTokensParser {
         int i = offset;
         int tokenStart = 0;
         boolean canWrapInput = true;
-        Color color = Color.WHITE;
+        byte color = COLOR_WHITE;
         StringBuilder charsBuffer = null;
         while (i < offset + length) {
             char ch = input.charAt(i);
@@ -184,7 +190,7 @@ public abstract class AbstractColoredTokensParser {
                     // Start a new token
                     canWrapInput = true;
                     tokenStart = i;
-                    color = Color.values()[nextCh - '0'];
+                    color = (byte)(nextCh - '0');
                     continue;
                 }
 
@@ -225,7 +231,7 @@ public abstract class AbstractColoredTokensParser {
 
         int tokenStart = 0;
         boolean canWrapInput = true;
-        Color color = Color.WHITE;
+        byte color = COLOR_WHITE;
         StringBuilder charsBuffer = null;
         while (i < offset + length) {
             char ch = input.charAt(i);
@@ -252,7 +258,7 @@ public abstract class AbstractColoredTokensParser {
                     // Start a new token
                     canWrapInput = true;
                     tokenStart = i;
-                    color = Color.values()[nextCh - '0'];
+                    color = (byte)(nextCh - '0');
                     continue;
                 }
 

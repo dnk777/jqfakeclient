@@ -3,7 +3,7 @@ package com.github.qfusion.fakeclient;
 /**
  * A part of a {@link CharSequence}, a {@link String} or a char array that has an associated {@link Color}.
  */
-public class ColoredToken implements CharSequence {
+class ColoredToken implements CharSequence {
     CharSequence underlying;
     String underlyingString;
     char[] underlyingArray;
