@@ -34,8 +34,9 @@ android {
 def callJavah(Exec task, String classpath) {
     File outputFile = file("$buildDir/generated/jni_headers/jqfakeclient.h")
     String[] jniClasses = [
-            "com.github.qfusion.fakeclient.System",
-            "com.github.qfusion.fakeclient.Client"
+        "com.github.qfusion.fakeclient.System",
+        "com.github.qfusion.fakeclient.Client",
+        "com.github.qfusion.fakeclient.ScoreboardData"
     ]
     task.inputs.files classpath
     task.inputs.property("classes", jniClasses)

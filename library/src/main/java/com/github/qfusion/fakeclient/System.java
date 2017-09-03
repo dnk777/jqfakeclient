@@ -1,6 +1,12 @@
 package com.github.qfusion.fakeclient;
 
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.CharBuffer;
+import java.util.Arrays;
 
 /**
  * A singleton that contains common underlying library logic.
@@ -26,6 +32,22 @@ public class System {
     private static native long nativeNewClient(long nativeSystem, NativeBridgeConsole console);
     private static native void nativeDeleteClient(long nativeSystem, long nativeClient);
     private static native void nativeFrame(long nativeSystem, int maxMillis);
+
+    private static native boolean nativeAddMasterServerIpV4(long nativeSystem, int bytes, short port);
+    private static native boolean nativeAddMasterServerIpV6(long nativeSystem, long bytes1, long bytes2, short port);
+    private static native boolean nativeRemoveMasterServerIpV4(long nativeSystem, int bytes, short port);
+    private static native boolean nativeRemoveMasterServerIpV6(long nativeSystem, long hiPart, long loPart, short port);
+    private static native boolean nativeIsMasterServerIpV4(long nativeSystem, int bytes, short port);
+    private static native boolean nativeIsMasterServerIpV6(long nativeSystem, long hiPart, long loPart, short port);
+
+    private static native boolean nativeStartUpdatingServerList(long nativeSystem, NativeBridgeServerListListener listener,
+                                                                ByteBuffer byteIoBuffer, CharBuffer charIoBuffer);
+
+    private static native void nativeSetServerListUpdateOptions(long nativeSystem,
+                                                                boolean showEmptyServers,
+                                                                boolean showPlayerInfo);
+
+    private static native void nativeStopUpdatingServerList(long nativeSystem);
 
     private System(long nativeSystem) {
         this.nativeSystem = nativeSystem;
@@ -107,5 +129,112 @@ public class System {
             throw new IllegalArgumentException(message);
         }
         nativeFrame(nativeSystem, maxMillis);
+    }
+
+    public boolean addMasterServer(InetAddress address, short port) {
+        if (address instanceof Inet4Address) {
+            return addMasterServer((Inet4Address)address, port);
+        }
+        if (address instanceof Inet6Address) {
+            return addMasterServer((Inet6Address)address, port);
+        }
+        throw new IllegalArgumentException("The address " + address + " has an illegal type");
+    }
+
+    public boolean addMasterServer(Inet4Address address, short port) {
+        return nativeAddMasterServerIpV4(nativeSystem, bytesToInt(address.getAddress(), 0), port);
+    }
+
+    public boolean addMasterServer(Inet6Address address, short port) {
+        byte[] addressBytes = address.getAddress();
+        long hiPart = bytesToLong(addressBytes, 0);
+        long loPart = bytesToLong(addressBytes, 8);
+        return nativeAddMasterServerIpV6(nativeSystem, hiPart, loPart, port);
+    }
+
+    public boolean removeMasterServer(InetAddress address, short port) {
+        if (address instanceof Inet4Address) {
+            return removeMasterServer((Inet4Address)address, port);
+        }
+        if (address instanceof Inet6Address) {
+            return removeMasterServer((Inet6Address)address, port);
+        }
+        throw new IllegalArgumentException("The address " + address + " has an illegal type");
+    }
+
+    public boolean removeMasterServer(Inet4Address address, short port) {
+        return nativeRemoveMasterServerIpV4(nativeSystem, bytesToInt(address.getAddress(), 0), port);
+    }
+
+    public boolean removeMasterServer(Inet6Address address, short port) {
+        byte[] addressBytes = address.getAddress();
+        long hiPart = bytesToLong(addressBytes, 0);
+        long loPart = bytesToLong(addressBytes, 8);
+        return nativeRemoveMasterServerIpV6(nativeSystem, hiPart, loPart, port);
+    }
+
+    public boolean isMasterServer(InetAddress address, short port) {
+        if (address instanceof Inet4Address) {
+            return isMasterServer((Inet4Address)address, port);
+        }
+        if (address instanceof Inet6Address) {
+            return isMasterServer((Inet6Address)address, port);
+        }
+        throw new IllegalArgumentException("The address " + address + " has an illegal type");
+    }
+
+    public boolean isMasterServer(Inet4Address address, short port) {
+        return nativeIsMasterServerIpV4(nativeSystem, bytesToInt(address.getAddress(), 0), port);
+    }
+
+    public boolean isMasterServer(Inet6Address address, short port) {
+        byte[] addressBytes = address.getAddress();
+        long hiPart = bytesToLong(addressBytes, 0);
+        long loPart = bytesToLong(addressBytes, 8);
+        return nativeIsMasterServerIpV6(nativeSystem, hiPart, loPart, port);
+    }
+
+    /**
+     * Constructs an integer value from the given bytes.
+     * These bytes are assumed to be in network byte order.
+     * The result is in native byte order and can be used as a regular integer.
+     */
+    private static int bytesToInt(byte[] bytes, int offset) {
+        int result = 0;
+        result |= ((bytes[offset + 0] & 0xFF) << 24);
+        result |= ((bytes[offset + 1] & 0xFF) << 16);
+        result |= ((bytes[offset + 2] & 0xFF) << 8);
+        result |= ((bytes[offset + 3] & 0xFF) << 0);
+        return result;
+    }
+
+    /**
+     * Constructs an long value from the given bytes.
+     * These bytes are assumed to be in network byte order.
+     * The result is in native byte order and can be used as a regular long.
+     */
+    private static long bytesToLong(byte[] bytes, int offset) {
+        long result = 0;
+        result |= ((long)(bytes[offset + 0] & 0xFF) << 56);
+        result |= ((long)(bytes[offset + 1] & 0xFF) << 48);
+        result |= ((long)(bytes[offset + 2] & 0xFF) << 40);
+        result |= ((long)(bytes[offset + 3] & 0xFF) << 32);
+        result |= ((long)(bytes[offset + 4] & 0xFF) << 24);
+        result |= ((long)(bytes[offset + 5] & 0xFF) << 16);
+        result |= ((long)(bytes[offset + 6] & 0xFF) << 8);
+        result |= ((long)(bytes[offset + 7] & 0xFF) << 0);
+        return result;
+    }
+
+    public boolean startUpdatingServerList(NativeBridgeServerListListener listener) {
+        return nativeStartUpdatingServerList(nativeSystem, listener, listener.byteIoBuffer, listener.charIoBuffer);
+    }
+
+    public void setServerListUpdateOptions(boolean showEmptyServers, boolean showPlayerInfo) {
+        nativeSetServerListUpdateOptions(nativeSystem, showEmptyServers, showPlayerInfo);
+    }
+
+    public void stopUpdatingServerList() {
+        nativeStopUpdatingServerList(nativeSystem);
     }
 }

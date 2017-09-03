@@ -120,6 +120,13 @@ final class CharArrayView implements CharSequence {
 
     public static final CharArrayView EMPTY;
 
+    static CharArrayView newForOffset(int offset) {
+        CharArrayView result = new CharArrayView();
+        result.arrayRef = EMPTY.arrayRef;
+        result.arrayOffset = offset;
+        return result;
+    }
+
     static {
         EMPTY = new CharArrayView();
         EMPTY.arrayRef = new char[0];
