@@ -29,19 +29,30 @@ public class Client {
     private static native void nativeExecuteCommand(long nativeClient, byte[] commandUtf8Bytes);
 
     /**
+     * Clients are not intended to be used from multiple threads.
+     * However protecting these native calls that are not thread-safe
+     * and that could lead to very hard to find bugs is misused is a good idea.
+     */
+    private static final Object lock = new Object();
+
+    /**
      * Sets a {@link ClientListener} for the client.
      * Repeated calls are allowed, old listeners are deleted in this case.
      * @param listener A {@link NativeBridgeClientListener} for the native client object.
      *                 A null listener is allowed.
      */
     public void setListener(NativeBridgeClientListener listener) {
-        nativeSetListener(nativeClient, listener);
+        synchronized (lock) {
+            nativeSetListener(nativeClient, listener);
+        }
     }
 
     /**
      * Executes a client command typed by a user (a player) in a console.
      */
     public void executeCommand(String command) {
-        nativeExecuteCommand(nativeClient, command.getBytes(charset));
+        synchronized (lock) {
+            nativeExecuteCommand(nativeClient, command.getBytes(charset));
+        }
     }
 }

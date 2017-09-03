@@ -101,8 +101,11 @@ public class System {
         if (console == null) {
             throw new IllegalArgumentException("The argument console is null");
         }
-        // No need to lock it since nativeNewClient is thread-safe
-        return new Client(nativeNewClient(nativeSystem, console), console);
+
+        // The corresponding native call that operates on JNI data and constructs auxiliary objects is not thread safe
+        synchronized (lock) {
+            return new Client(nativeNewClient(nativeSystem, console), console);
+        }
     }
 
     /**
@@ -227,7 +230,10 @@ public class System {
     }
 
     public boolean startUpdatingServerList(NativeBridgeServerListListener listener) {
-        return nativeStartUpdatingServerList(nativeSystem, listener, listener.byteIoBuffer, listener.charIoBuffer);
+        // The corresponding native call that operates on JNI data and constructs auxiliary objects is not thread safe
+        synchronized (lock) {
+            return nativeStartUpdatingServerList(nativeSystem, listener, listener.byteIoBuffer, listener.charIoBuffer);
+        }
     }
 
     public void setServerListUpdateOptions(boolean showEmptyServers, boolean showPlayerInfo) {
