@@ -62,7 +62,6 @@ class ScoreboardUpdatesDeltaDecoder {
         final char[] bufferChars = scoreboardData.buffer;
         final int[] updatesFlags = STRING_UPDATES_FLAGS;
         final int[] bufferOffsets = STRING_UPDATES_BUFFER_OFFSETS;
-        final CharArrayView[] stringFieldViews = scoreboardData.stringFieldViews;
         int deltaPtr = 0;
         for (int i = 0; i < updatesFlags.length; ++i) {
             if ((serverInfoUpdateMask & updatesFlags[i]) == 0) {
@@ -74,10 +73,6 @@ class ScoreboardUpdatesDeltaDecoder {
             int bufferOffset = bufferOffsets[i * 2 + 1] - SCOREBOARD_DATA_OFFSET;
             // This length is written as a first char in a delta entry, an actual chunk follows
             int totalChunkLength = deltaChars[deltaPtr];
-            // Skip the total updated chunk length by adding +1.
-            // Get the string value length and patch the scoreboard array view length
-            int valueLength = deltaChars[deltaPtr + 1 + lengthOffset];
-            stringFieldViews[i].length = valueLength;
             // Copy all updated chars (which might include binary parts along with string data)
             java.lang.System.arraycopy(deltaChars, deltaPtr + 1, bufferChars, bufferOffset, totalChunkLength);
             // Go to the next delta entry (skip the current updated chunk length and chunk data)
@@ -97,7 +92,6 @@ class ScoreboardUpdatesDeltaDecoder {
     private void decodePlayerInfo(ScoreboardData scoreboardData, DeltaUpdateMessage message, int deltaPtr) {
         final char[] deltaChars = message.deltaChars;
         final char[] bufferChars = scoreboardData.buffer;
-        final CharArrayView[][] playersFieldsViews = scoreboardData.playerFieldsViews;
         final byte[] playersUpdateBytes = message.playersUpdateBytes;
         scoreboardData.playersInfoUpdateMask = playersUpdateBytes;
 
@@ -116,23 +110,9 @@ class ScoreboardUpdatesDeltaDecoder {
                 int totalChunkLength = deltaChars[deltaPtr];
                 // A relative offset of a string length in an updated chunk and in the scoreboard data buffer
                 int lengthOffset = playerInfoUpdatesOffsets[flagNum * 2 + 0];
-                // Get the string value length.
-                // Skip the total updated chunk length by adding +1.
-                int valueLength = deltaChars[deltaPtr + 1 + lengthOffset];
                 // An absolute offset of an updated chunk in the scoreboard data buffer
                 int bufferOffset = PLAYERS_DATA_OFFSET - SCOREBOARD_DATA_OFFSET + clientNum * PLAYER_DATA_STRIDE;
                 bufferOffset += playerInfoUpdatesOffsets[flagNum * 2 + 1];
-                // We have to check there is a CharArrayView allocated for this string field
-                // (Some views are allocated lazily).
-                final CharArrayView[] fieldViewsForFlag = playersFieldsViews[flagNum];
-                CharArrayView view = fieldViewsForFlag[clientNum];
-                if (view == null) {
-                    view = fieldViewsForFlag[clientNum] = new CharArrayView();
-                }
-                view.arrayRef = bufferChars;
-                view.arrayOffset = bufferOffset + lengthOffset + 1;
-                // Patch the CharArrayView by the read value length
-                view.length = valueLength;
                 // Copy all updated chars (which might include binary parts along with string data)
                 java.lang.System.arraycopy(deltaChars, deltaPtr + 1, scoreboardData.buffer, bufferOffset, totalChunkLength);
                 // Go to the next delta entry (skip the current updated chunk length and chunk data)

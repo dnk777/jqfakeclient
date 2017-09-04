@@ -5,9 +5,12 @@ import static com.github.qfusion.fakeclient.ScoreboardData.*;
 import junit.framework.TestCase;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
+/**
+ * Half of tests in this class no longer make sense since the {@link ScoreboardData}
+ * code has been greatly simplified, but we have decided to keep ones.
+ */
 public class ScoreboardDataTest extends TestCase {
     static void writeStringAndLength(char[] buffer, int offset, String value) {
         offset -= SCOREBOARD_DATA_OFFSET;
@@ -127,7 +130,6 @@ public class ScoreboardDataTest extends TestCase {
     private ScoreboardData newDefaultScoreboardData() {
         ScoreboardData result = new ScoreboardData();
         result.buffer = new char[PLAYERS_DATA_OFFSET - SCOREBOARD_DATA_OFFSET];
-        result.updateServerDataCharArrayViews(false);
         return result;
     }
 
@@ -143,8 +145,6 @@ public class ScoreboardDataTest extends TestCase {
         setGametype(scoreboardData.buffer, gametype);
         String mapName = "wca1";
         setMapName(scoreboardData.buffer, mapName);
-
-        scoreboardData.updateServerDataCharArrayViews(true);
 
         // It is easier to debug if these partial properties are tested prior to an actual value test
         assertEquals(ADDRESS_OFFSET + 1, scoreboardData.getAddress().arrayOffset + SCOREBOARD_DATA_OFFSET);
@@ -182,8 +182,6 @@ public class ScoreboardDataTest extends TestCase {
         int timeFlags = TIME_FLAG_OVERTIME | TIME_FLAG_TIMEOUT;
         setTimeFlags(scoreboardData.buffer, timeFlags);
 
-        scoreboardData.updateServerDataCharArrayViews(true);
-
         assertEquals(timeMinutes, scoreboardData.getMatchTimeMinutesValue());
         assertEquals("" + timeMinutes, scoreboardData.getMatchTimeMinutesChars().toString());
 
@@ -211,8 +209,6 @@ public class ScoreboardDataTest extends TestCase {
         setAlphaScore(scoreboardData.buffer, 7);
         setBetaScore(scoreboardData.buffer, 8);
 
-        scoreboardData.updateServerDataCharArrayViews(true);
-
         assertEquals("ALPHA", scoreboardData.getAlphaName().toString());
         assertEquals("BETA", scoreboardData.getBetaName().toString());
 
@@ -229,8 +225,6 @@ public class ScoreboardDataTest extends TestCase {
         setNumClients(scoreboardData.buffer, 15);
         setNumBots(scoreboardData.buffer, 3);
 
-        scoreboardData.updateServerDataCharArrayViews(true);
-
         assertEquals(256, scoreboardData.getMaxClientsValue());
         assertEquals("256", scoreboardData.getMaxClientsChars().toString());
 
@@ -245,13 +239,11 @@ public class ScoreboardDataTest extends TestCase {
         ScoreboardData scoreboardData = newDefaultScoreboardData();
 
         writeStringAndLength(scoreboardData.buffer, NEED_PASSWORD_OFFSET, "no");
-        scoreboardData.updateServerDataCharArrayViews(true);
 
         assertEquals("no", scoreboardData.getNeedPasswordChars().toString());
         assertFalse(scoreboardData.getNeedPasswordValue());
 
         writeStringAndLength(scoreboardData.buffer, NEED_PASSWORD_OFFSET, "yes");
-        scoreboardData.updateServerDataCharArrayViews(true);
 
         assertEquals("yes", scoreboardData.getNeedPasswordChars().toString());
         assertTrue(scoreboardData.getNeedPasswordValue());
@@ -300,14 +292,8 @@ public class ScoreboardDataTest extends TestCase {
     public void test_resizeIfNeeded_noNewPlayerInfo_createNewBuffers() {
         ScoreboardData scoreboardData = new ScoreboardData();
         assertNull(scoreboardData.buffer);
-        for (CharArrayView[] fieldsView: scoreboardData.playerFieldsViews) {
-            assertNull(fieldsView);
-        }
         scoreboardData.resizeIfNeeded(0, 3, false);
         assertNotNull(scoreboardData.buffer);
-        for (CharArrayView[] fieldsView: scoreboardData.playerFieldsViews) {
-            assertNull(fieldsView);
-        }
     }
 
     public void test_resizeIfNeeded_noNewPlayerInfo_keepExistingNullPlayersBuffers_1() {
@@ -318,16 +304,9 @@ public class ScoreboardDataTest extends TestCase {
         scoreboardData.wrapBuffers(initialBuffer, new byte[MAX_PLAYERS]);
         assertEquals(scoreboardData.buffer, initialBuffer);
 
-        for (CharArrayView[] fieldsViews: scoreboardData.playerFieldsViews) {
-            assertNull(fieldsViews);
-        }
-
         scoreboardData.resizeIfNeeded(0, 0, false);
 
         assertSame(scoreboardData.buffer, initialBuffer);
-        assertNull(scoreboardData.playerFieldsViews[0]);
-        assertNull(scoreboardData.playerFieldsViews[1]);
-        assertNull(scoreboardData.playerFieldsViews[2]);
     }
 
     public void test_resizeIfNeeded_noNewPlayerInfo_keepExistingNullPlayersBuffers_2() {
@@ -346,34 +325,6 @@ public class ScoreboardDataTest extends TestCase {
         scoreboardData.resizeIfNeeded(3, 0, false);
 
         assertNotSame(scoreboardData.buffer, initialBuffer);
-        for (CharArrayView[] fieldsViews: scoreboardData.playerFieldsViews) {
-            assertNull(fieldsViews);
-        }
-    }
-
-    public void test_resizeIfNeeded_hasNewPlayerInfo_createNewBuffers_1() {
-        ScoreboardData scoreboardData = new ScoreboardData();
-        assertNull(scoreboardData.buffer);
-        for (CharArrayView[] fieldsView: scoreboardData.playerFieldsViews) {
-            assertNull(fieldsView);
-        }
-
-        scoreboardData.resizeIfNeeded(0, 3, true);
-
-        assertNotNull(scoreboardData.buffer);
-        assertNotNull(scoreboardData.playerFieldsViews[PLAYER_VIEW_INDEX_PING]);
-        for (int i = 0; i < 3; ++i) {
-            assertNotNull(scoreboardData.playerFieldsViews[PLAYER_VIEW_INDEX_PING][i]);
-        }
-        assertNotNull(scoreboardData.playerFieldsViews[PLAYER_VIEW_INDEX_NAME]);
-        for (int i = 0; i < 3; ++i) {
-            assertNotNull(scoreboardData.playerFieldsViews[PLAYER_VIEW_INDEX_NAME][i]);
-        }
-        assertNotNull(scoreboardData.playerFieldsViews[2]);
-        for (int i = 0; i < 3; ++i) {
-            // Score array views are allocated lazily
-            assertNull(scoreboardData.playerFieldsViews[2][i]);
-        }
     }
 
     public void test_resizeIfNeeded_hasNewPlayerInfo_createNewBuffers_2() {
@@ -382,15 +333,8 @@ public class ScoreboardDataTest extends TestCase {
         initialBuffer[NUM_CLIENTS_OFFSET - SCOREBOARD_DATA_OFFSET] = 3;
         setHasPlayerInfo(initialBuffer, false);
         scoreboardData.wrapBuffers(initialBuffer, new byte[MAX_PLAYERS]);
-        for (CharArrayView[] fieldsViews: scoreboardData.playerFieldsViews) {
-            assertNull(fieldsViews);
-        }
 
         scoreboardData.resizeIfNeeded(3, 3, true);
-
-        for (CharArrayView[] fieldsViews: scoreboardData.playerFieldsViews) {
-            assertNotNull(fieldsViews);
-        }
     }
 
     public void test_resizeIfNeeded_hasNewPlayerInfo_growPlayersBuffers() {
@@ -410,24 +354,13 @@ public class ScoreboardDataTest extends TestCase {
         CharArrayView secondPlayerScoreView = scoreboardData.getPlayerScoreChars(1);
         assertEquals("1337", secondPlayerScoreView.toString());
 
-        List<CharArrayView[]> oldFieldsViews = new ArrayList<CharArrayView[]>();
-        for (CharArrayView[] fieldsViews: scoreboardData.playerFieldsViews) {
-            oldFieldsViews.add(fieldsViews);
-        }
-
         scoreboardData.resizeIfNeeded(2, 15, true);
-
-        for (int i = 0; i < 3; ++i) {
-            assertNotSame(oldFieldsViews.get(i), scoreboardData.playerFieldsViews[i]);
-        }
 
         assertEquals("Player(0)", scoreboardData.getPlayerName(0).toString());
         assertEquals("Player(1)", scoreboardData.getPlayerName(1).toString());
 
         assertEquals("-1337", scoreboardData.getPlayerScoreChars(0).toString());
         assertEquals("+1337", "+" + scoreboardData.getPlayerScoreChars(1).toString());
-        // The allocated object should be kept (only its array storage is updated)
-        assertSame(secondPlayerScoreView, scoreboardData.getPlayerScoreChars(1));
     }
 
     public void test_resizeIfNeeded_hasNewPlayerInfo_addToExistingPlayersBuffers() {
@@ -447,25 +380,13 @@ public class ScoreboardDataTest extends TestCase {
         CharArrayView secondPlayerScoreView = scoreboardData.getPlayerScoreChars(1);
         assertEquals("1", secondPlayerScoreView.toString());
 
-        List<CharArrayView[]> oldFieldsViews = new ArrayList<CharArrayView[]>();
-        for (CharArrayView[] fieldsViews: scoreboardData.playerFieldsViews) {
-            // Check whether there is an allocated free space at the end
-            assertTrue(fieldsViews.length > 2);
-            oldFieldsViews.add(fieldsViews);
-        }
-
         scoreboardData.resizeIfNeeded(2, 3, true);
-        for (int i = 0; i < 3; ++i) {
-            assertSame(oldFieldsViews.get(i), scoreboardData.playerFieldsViews[i]);
-        }
 
         assertEquals("Player(0)", scoreboardData.getPlayerName(0).toString());
         assertEquals("Player(1)", scoreboardData.getPlayerName(1).toString());
 
         assertEquals("0", scoreboardData.getPlayerScoreChars(0).toString());
         assertEquals("1", scoreboardData.getPlayerScoreChars(1).toString());
-        // The allocated object should be kept
-        assertSame(secondPlayerScoreView, scoreboardData.getPlayerScoreChars(1));
     }
 
     public void test_resizeIfNeeded_hasNewPlayerInfo_truncateKeepingExistingBuffers() {
@@ -481,13 +402,8 @@ public class ScoreboardDataTest extends TestCase {
         }
 
         List<CharArrayView[]> oldFieldsViews = new ArrayList<CharArrayView[]>();
-        Collections.addAll(oldFieldsViews, scoreboardData.playerFieldsViews);
 
         scoreboardData.resizeIfNeeded(8, 7, true);
-
-        for (int i = 0; i < 3; ++i) {
-            assertSame(oldFieldsViews.get(i), scoreboardData.playerFieldsViews[i]);
-        }
 
         for (int i = 0; i < 7; ++i) {
             assertEquals(i, scoreboardData.getPlayerPingValue(i));
@@ -505,11 +421,6 @@ public class ScoreboardDataTest extends TestCase {
         scoreboardData.wrapBuffers(initialBuffer, new byte[MAX_PLAYERS]);
         assertSame(scoreboardData.buffer, initialBuffer);
 
-        for (CharArrayView[] fieldsViews: scoreboardData.playerFieldsViews) {
-            assertNotNull(fieldsViews);
-            assertTrue(fieldsViews.length >= 72);
-        }
-
         for (int i = 0; i < 72; ++i) {
             setPlayerPing(i, initialBuffer, i);
             setPlayerName(i, initialBuffer, "Player(" + i + ")");
@@ -520,7 +431,6 @@ public class ScoreboardDataTest extends TestCase {
         assertNotSame(scoreboardData.buffer, initialBuffer);
 
         for (int i = 0; i < 3; ++i) {
-            assertTrue(scoreboardData.playerFieldsViews[i].length < 72 / 2);
             assertEquals(i, scoreboardData.getPlayerPingValue(i));
             assertEquals("" + i, scoreboardData.getPlayerPingChars(i).toString());
             assertEquals("Player(" + i + ")", scoreboardData.getPlayerName(i).toString());
