@@ -8,14 +8,21 @@ package com.github.qfusion.fakeclient;
  */
 public abstract class AbstractColoredTokensParser {
     /**
-     * Should be overridden in a subclass if one needs extended tokens
+     * Should be overridden in a subclass
      */
     protected abstract void addWrappedToken(CharSequence underlying, int startIndex, int length, byte colorNum);
 
     /**
-     * Should be overridden in a subclass if one needs extended tokens
+     * Should be overridden in a subclass
      */
     protected abstract void addWrappedToken(String underlying, int startIndex, int length, byte colorNum);
+
+    /**
+     * Should be overridden in a subclass if one needs to operate on {@link CharArrayView}
+     */
+    protected void addWrappedToken(CharArrayView underlying, int startIndex, int length, byte colorNum) {
+        addWrappedToken((CharSequence)underlying, startIndex, length, colorNum);
+    }
 
     public final void parse(CharSequence input) {
         parse0(input, 0, input.length());
@@ -284,5 +291,71 @@ public abstract class AbstractColoredTokensParser {
                 addCopiedToken(charsBuffer, input, tokenStart, i - tokenStart, color);
             }
         }
+    }
+
+    /**
+     * A specialized version of {@link AbstractColoredTokensParser::parse(CharSequence)}
+     * for {@link CharArrayView} that relies on mutability of the input
+     * for removal of circumflex escape sequences from it.
+     */
+    public void parseRemovingColors(CharArrayView input) {
+        final char[] chars = input.arrayRef;
+        final int offset = input.arrayOffset;
+        final int limit = input.arrayOffset + input.length;
+
+        int inputPtr = input.arrayOffset;
+        int resultPtr = input.arrayOffset;
+
+        // Aid bounds checker
+        if (inputPtr < 0 || resultPtr < 0) {
+            throw new AssertionError();
+        }
+        if (limit < 0 || limit > chars.length) {
+            throw new AssertionError();
+        }
+
+        byte color = COLOR_WHITE;
+        int tokenStart = resultPtr;
+
+        // Copy chars in the current token
+        while (inputPtr < limit) {
+            char ch = chars[inputPtr];
+            if (ch != '^') {
+                chars[resultPtr++] = ch;
+                inputPtr++;
+                continue;
+            }
+            // If can do a single character lookahead
+            if (inputPtr + 1 < limit) {
+                char nextCh = chars[inputPtr + 1];
+                if (nextCh >= '0' && nextCh <= '9') {
+                    if (resultPtr - tokenStart > 0) {
+                        addWrappedToken(input, tokenStart - offset, resultPtr - tokenStart, color);
+                    }
+                    color = (byte)(nextCh - '0');
+                    inputPtr += 2;
+                    tokenStart = resultPtr;
+                    continue;
+                }
+                if (nextCh == '^') {
+                    chars[resultPtr++] = '^';
+                    inputPtr += 2;
+                    continue;
+                }
+                chars[resultPtr++] = ch;
+                chars[resultPtr++] = nextCh;
+                inputPtr += 2;
+                continue;
+            }
+            // Can't do a lookahead, copy the circumflex as-is.
+            chars[resultPtr++] = ch;
+            inputPtr++;
+        }
+
+        if (resultPtr - tokenStart > 0) {
+            addWrappedToken(input, tokenStart - offset, resultPtr - tokenStart, color);
+        }
+
+        input.length = resultPtr - input.arrayOffset;
     }
 }

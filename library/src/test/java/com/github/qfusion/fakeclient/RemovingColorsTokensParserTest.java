@@ -1,28 +1,23 @@
 package com.github.qfusion.fakeclient;
 
-import java.util.ArrayList;
-import java.util.List;
 import junit.framework.TestCase;
 
-public class ColoredTokensParserTest extends TestCase {
-    private static final String CHARSEQ_ADDRESS_MISMATCH =
-        "Address of the underlying char sequence must match input (in this case)";
-    private static final String STRING_ADDRESS_MISMATCH =
-        "Address of the underlying string must match input (in this case)";
+import java.util.ArrayList;
+import java.util.List;
 
-    // Note: in case when a circumflex starts or ends a token,
-    // we may really avoid copying, but we do not want to complicate parser
-    // for this marginal and very rare case.
-
-    private static final String CHARSEQ_ADDRESS_MATCH =
-        "Address of the underlying char sequence must not match input (in this case)";
-    private static final String STRING_ADDRESS_NONNULL =
-        "An underlying string should not be present (in this case)";
-
-    private static List<ColoredToken> parse(CharSequence input) {
-        List<ColoredToken> results = new ArrayList<ColoredToken>();
-        new ColoredTokensParser<ColoredToken>(ColoredTokensFactory.getDefault(), results).parse(input);
-        return results;
+/**
+ * {@link AbstractColoredTokensParser#parseRemovingColors(CharArrayView)} method deserves a separate tests set.
+ */
+public class RemovingColorsTokensParserTest extends TestCase {
+    private List<ColoredToken> parse(String input) {
+        // We add an start offset to test whether the parser code operates on indices properly.
+        // However we do not add extra space at the end of chars buffer to spot an OOB access immediately.
+        char[] chars = new char[input.length() + 2];
+        input.getChars(0, input.length(), chars, 2);
+        CharArrayView view = new CharArrayView(chars, 2, input.length());
+        CharArrayViewColoredTokensParser parser = new CharArrayViewColoredTokensParser();
+        parser.parseRemovingColors(view);
+        return parser.getTokens();
     }
 
     public void testEmptyInput() {
@@ -35,17 +30,17 @@ public class ColoredTokensParserTest extends TestCase {
         List<ColoredToken> tokens = parse(input);
         assertEquals(1, tokens.size());
         ColoredToken token = tokens.get(0);
-        assertSame(CHARSEQ_ADDRESS_MISMATCH, token.getUnderlying(), input);
-        assertSame(STRING_ADDRESS_MISMATCH, token.getUnderlyingStringOrNull(), input);
+        assertEquals(input, token.toString());
+        assertEquals(Color.WHITE, token.getColor());
     }
 
     public void testBrokenEscapeSequenceAtStart() {
-        String input = "^Malfored escape sequence";
+        String input = "^Malformed escape sequence";
         List<ColoredToken> tokens = parse(input);
         assertEquals(1, tokens.size());
         ColoredToken token = tokens.get(0);
-        assertSame(CHARSEQ_ADDRESS_MISMATCH, token.getUnderlying(), input);
-        assertSame(STRING_ADDRESS_MISMATCH, token.getUnderlyingStringOrNull(), input);
+        assertEquals(input, token.toString());
+        assertEquals(Color.WHITE, token.getColor());
     }
 
     public void testBrokenEscapeSequenceAtMid() {
@@ -53,8 +48,8 @@ public class ColoredTokensParserTest extends TestCase {
         List<ColoredToken> tokens = parse(input);
         assertEquals(1, tokens.size());
         ColoredToken token = tokens.get(0);
-        assertSame(CHARSEQ_ADDRESS_MISMATCH, token.getUnderlying(), input);
-        assertSame(STRING_ADDRESS_MISMATCH, token.getUnderlyingStringOrNull(), input);
+        assertEquals(input, token.toString());
+        assertEquals(Color.WHITE, token.getColor());
     }
 
     public void testBrokenEscapeSequenceAtEnd() {
@@ -62,8 +57,8 @@ public class ColoredTokensParserTest extends TestCase {
         List<ColoredToken> tokens = parse(input);
         assertEquals(1, tokens.size());
         ColoredToken token = tokens.get(0);
-        assertSame(CHARSEQ_ADDRESS_MISMATCH, token.getUnderlying(), input);
-        assertSame(STRING_ADDRESS_MISMATCH, token.getUnderlyingStringOrNull(), input);
+        assertEquals(input, token.toString());
+        assertEquals(Color.WHITE, token.getColor());
     }
 
     public void testEscapedCircumflexAtStart() {
@@ -71,8 +66,8 @@ public class ColoredTokensParserTest extends TestCase {
         List<ColoredToken> tokens = parse(input);
         assertEquals(1, tokens.size());
         ColoredToken token = tokens.get(0);
-        assertNotSame(CHARSEQ_ADDRESS_MATCH, token.getUnderlying(), input);
-        assertNotSame(STRING_ADDRESS_NONNULL, token.getUnderlyingStringOrNull(), input);
+        assertEquals(input.substring(1), token.toString());
+        assertEquals(Color.WHITE, token.getColor());
     }
 
     public void testEscapedCircumflexAtMid() {
@@ -80,18 +75,17 @@ public class ColoredTokensParserTest extends TestCase {
         List<ColoredToken> tokens = parse(input);
         assertEquals(1, tokens.size());
         ColoredToken token = tokens.get(0);
-        assertNotSame(CHARSEQ_ADDRESS_MATCH, token.getUnderlying(), input);
-        assertNotSame(STRING_ADDRESS_NONNULL, token.getUnderlyingStringOrNull(), input);
+        assertEquals(input.replace("^^", "^"), token.toString());
+        assertEquals(Color.WHITE, token.getColor());
     }
 
-    public void testEscapedCirculflexAtEnd() {
+    public void testEscapedCircumflexAtEnd() {
         String input = "Circumflex at End^^";
         List<ColoredToken> tokens = parse(input);
         assertEquals(1, tokens.size());
         ColoredToken token = tokens.get(0);
-        assertNotSame(CHARSEQ_ADDRESS_MATCH, token.getUnderlying(), input);
-        assertNotSame(STRING_ADDRESS_NONNULL, token.getUnderlyingStringOrNull(), input);
         assertEquals(input.substring(0, input.length() - 1), token.toString());
+        assertEquals(Color.WHITE, token.getColor());
     }
 
     public void testSingleColorEscapeAtStart() {
@@ -99,8 +93,6 @@ public class ColoredTokensParserTest extends TestCase {
         List<ColoredToken> tokens = parse(input);
         assertEquals(1, tokens.size());
         ColoredToken token = tokens.get(0);
-        assertSame(CHARSEQ_ADDRESS_MISMATCH, token.getUnderlying(), input);
-        assertSame(STRING_ADDRESS_MISMATCH, token.getUnderlyingStringOrNull(), input);
         assertEquals(input.substring(2), token.toString());
         assertEquals(Color.GREY, token.getColor());
     }
@@ -111,14 +103,10 @@ public class ColoredTokensParserTest extends TestCase {
         assertEquals(2, tokens.size());
 
         ColoredToken token1 = tokens.get(0);
-        assertSame(CHARSEQ_ADDRESS_MISMATCH, token1.getUnderlying(), input);
-        assertSame(STRING_ADDRESS_MISMATCH, token1.getUnderlyingStringOrNull(), input);
         assertEquals(input.split("\\^")[0], token1.toString());
         assertEquals(Color.WHITE, token1.getColor());
 
         ColoredToken token2 = tokens.get(1);
-        assertSame(CHARSEQ_ADDRESS_MISMATCH, token2.getUnderlying(), input);
-        assertSame(STRING_ADDRESS_MISMATCH, token2.getUnderlyingStringOrNull(), input);
         assertEquals(input.split("\\^")[1].substring(1), token2.toString());
         assertEquals(Color.RED, token2.getColor());
     }
@@ -128,26 +116,20 @@ public class ColoredTokensParserTest extends TestCase {
         List<ColoredToken> tokens = parse(input);
         assertEquals(1, tokens.size());
         ColoredToken token = tokens.get(0);
-        assertSame(CHARSEQ_ADDRESS_MISMATCH, token.getUnderlying(), input);
-        assertSame(STRING_ADDRESS_MISMATCH, token.getUnderlyingStringOrNull(), input);
         assertEquals(input.substring(0, input.length() - 2), token.toString());
         assertEquals(Color.WHITE, token.getColor());
     }
 
-    public void testMixedInput() {
-        String input = "Mixed input with ^6color, circumflex^^ and mal^formed escape sequences";
+    public void testMixedInput1() {
+        String input = "Mixed input with ^6color, circumflex^^ and mal^for^m^ed escape sequences";
         List<ColoredToken> tokens = parse(input);
         assertEquals(2, tokens.size());
 
         ColoredToken token1 = tokens.get(0);
-        assertSame(CHARSEQ_ADDRESS_MISMATCH, token1.getUnderlying(), input);
-        assertSame(STRING_ADDRESS_MISMATCH, token1.getUnderlyingStringOrNull(), input);
         assertEquals(input.split("\\^")[0], token1.toString());
         assertEquals(Color.WHITE, token1.getColor());
 
         ColoredToken token2 = tokens.get(1);
-        assertNotSame(CHARSEQ_ADDRESS_MATCH, token2.getUnderlying(), input);
-        assertNotSame(STRING_ADDRESS_NONNULL, token2.getUnderlyingStringOrNull(), input);
         String expected = input.split("\\^", 2)[1];
         expected = expected.substring(1);
         expected = expected.replaceAll("\\^\\^", "^");
@@ -155,9 +137,6 @@ public class ColoredTokensParserTest extends TestCase {
         assertEquals(Color.MAGENTA, token2.getColor());
     }
 
-    /**
-     * Ported from {@link RemovingColorsTokensParserTest}
-     */
     public void testMixedInput2() {
         String token1Chars = "Mixed input with ";
         String token2Chars = "colo^r^, ^malfo^rmed ";
@@ -181,7 +160,7 @@ public class ColoredTokensParserTest extends TestCase {
     }
 
     public void testTokensOfAllColors() {
-        // Same as the notourious Quake III ANARKI name, but for Warsow and 10 color codes.
+        // Same as the notorious Quake III ANARKI name, but for Warsow and 10 color codes.
         String name = "SILVERCLAW";
         if (name.length() != 10) {
             throw new AssertionError();
@@ -198,5 +177,28 @@ public class ColoredTokensParserTest extends TestCase {
             assertEquals("" + name.charAt(i), token.toString());
             assertEquals(Color.values()[i], token.getColor());
         }
+    }
+}
+
+class CharArrayViewColoredTokensParser extends AbstractColoredTokensParser {
+    @Override
+    protected void addWrappedToken(CharSequence underlying, int startIndex, int length, byte colorNum) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected void addWrappedToken(String underlying, int startIndex, int length, byte colorNum) {
+        throw new UnsupportedOperationException();
+    }
+
+    private final List<ColoredToken> tokens = new ArrayList<ColoredToken>();
+
+    List<ColoredToken> getTokens() {
+        return tokens;
+    }
+
+    @Override
+    protected void addWrappedToken(CharArrayView underlying, int startIndex, int length, byte colorNum) {
+        tokens.add(new ColoredToken(underlying, startIndex, length, Color.values()[colorNum]));
     }
 }
