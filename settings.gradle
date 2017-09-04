@@ -1,1 +1,4 @@
 include ':library'
+
+// Artifact publishing settings. See also library/build.gradle
+rootProject.name = 'jqfakeclient'

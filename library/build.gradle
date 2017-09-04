@@ -1,4 +1,9 @@
 apply plugin: 'com.android.library'
+apply plugin: 'com.github.dcendents.android-maven'
+
+// Artifact publishing settings. See also ../settings.gradle
+group = 'com.github.qfusion'
+version = '0.0.2'
 
 android {
     compileSdkVersion 25
