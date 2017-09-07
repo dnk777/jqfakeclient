@@ -86,6 +86,8 @@ class ScoreboardUpdatesDeltaDecoder {
             bufferChars[HAS_PLAYER_INFO_OFFSET - SCOREBOARD_DATA_OFFSET] = deltaChars[deltaPtr++];
         }
 
+        scoreboardData.checkServerDataTokensUpdates(serverInfoUpdateMask);
+
         return deltaPtr;
     }
 
@@ -123,6 +125,10 @@ class ScoreboardUpdatesDeltaDecoder {
                 offset += clientNum * PLAYER_DATA_STRIDE + PLAYER_TEAM_RELATIVE_OFFSET;
                 bufferChars[offset] = deltaChars[deltaPtr++];
             }
+        }
+
+        if (message.werePlayerNameUpdates) {
+            scoreboardData.updatePlayerNamesTokens();
         }
     }
 }

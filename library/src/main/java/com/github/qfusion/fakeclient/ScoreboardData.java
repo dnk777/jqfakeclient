@@ -223,6 +223,18 @@ public class ScoreboardData {
         return reuse;
     }
 
+    private ByteArrayView getByteArrayView(int entryOffset, ByteArrayView reuse) {
+        reuse.arrayOffset = entryOffset + 1;
+        reuse.arrayRef = coloredTokens;
+        reuse.length = coloredTokens[entryOffset];
+        if (BuildConfig.DEBUG) {
+            if ((reuse.length % 3) != 0) {
+                throw new AssertionError("Reuse.length " + reuse.length);
+            }
+        }
+        return reuse;
+    }
+
     public final CharArrayView getAddress(CharArrayView reuse) {
         return getCharArrayView(ADDRESS_OFFSET, 0, reuse);
     }
@@ -239,6 +251,15 @@ public class ScoreboardData {
     @VisibleForTesting(otherwise = VisibleForTesting.NONE)
     CharArrayView getServerName() {
         return getServerName(new CharArrayView());
+    }
+
+    public final ByteArrayView getServerNameTokens(ByteArrayView reuse) {
+        return getByteArrayView(TOKENS_SERVER_NAME_OFFSET, reuse);
+    }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
+    ByteArrayView getServerNameTokens() {
+        return getServerNameTokens(new ByteArrayView());
     }
 
     public final CharArrayView getModName(CharArrayView reuse) {
@@ -340,6 +361,15 @@ public class ScoreboardData {
         return getAlphaName(new CharArrayView());
     }
 
+    public final ByteArrayView getAlphaNameTokens(ByteArrayView reuse) {
+        return getByteArrayView(TOKENS_ALPHA_NAME_OFFSET, reuse);
+    }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
+    ByteArrayView getAlphaNameTokens() {
+        return getAlphaNameTokens(new ByteArrayView());
+    }
+
     public final CharArrayView getAlphaScoreChars(CharArrayView reuse) {
         return getCharArrayView(ALPHA_SCORE_OFFSET, 2, reuse);
     }
@@ -360,6 +390,15 @@ public class ScoreboardData {
     @VisibleForTesting(otherwise = VisibleForTesting.NONE)
     CharArrayView getBetaName() {
         return getBetaName(new CharArrayView());
+    }
+
+    public final ByteArrayView getBetaNameTokens(ByteArrayView reuse) {
+        return getByteArrayView(TOKENS_BETA_NAME_OFFSET, reuse);
+    }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
+    ByteArrayView getBetaNameTokens() {
+        return getBetaNameTokens(new ByteArrayView());
     }
 
     public final CharArrayView getBetaScoreChars(CharArrayView reuse) {
@@ -442,6 +481,20 @@ public class ScoreboardData {
 
     int instanceId;
     char[] buffer;
+
+    /**
+     * A shared buffer for packed colored tokens.
+     * An entry starts with the length of packed tokens sequence, and is followed by tokens.
+     * Each token is packed in 3 bytes: offset, length and color.
+     * Since there are no strings exceeding 64 characters, the byte type is satisfiable in this case.
+     */
+    byte[] coloredTokens;
+
+    private static final int TOKENS_SERVER_NAME_OFFSET = 0;
+    private static final int TOKENS_ALPHA_NAME_OFFSET = TOKENS_SERVER_NAME_OFFSET + 3 * SERVER_NAME_SIZE + 1;
+    private static final int TOKENS_BETA_NAME_OFFSET = TOKENS_ALPHA_NAME_OFFSET + 3 * ALPHA_NAME_SIZE + 1;
+    private static final int TOKENS_PLAYER_DATA_OFFSET = TOKENS_BETA_NAME_OFFSET + 3 * BETA_NAME_SIZE + 1;
+    private static final int TOKENS_PLAYER_DATA_STRIDE = 3 * PLAYER_NAME_SIZE + 1;
 
     private int getIntFromBuffer(int offset) {
         return (buffer[offset] << 16) | buffer[offset + 1];
@@ -535,63 +588,197 @@ public class ScoreboardData {
         return getShortFromBuffer(offset);
     }
 
+    public final ByteArrayView getPlayerNameTokens(int playerNum, ByteArrayView reuse) {
+        if (BuildConfig.DEBUG) {
+            checkPlayerNum(playerNum);
+        }
+        int entryOffset = TOKENS_PLAYER_DATA_OFFSET + playerNum * TOKENS_PLAYER_DATA_STRIDE;
+        return getByteArrayView(entryOffset, reuse);
+    }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
+    ByteArrayView getPlayerNameTokens(int playerNum) {
+        return getPlayerNameTokens(playerNum, new ByteArrayView());
+    }
+
     public final int getInstanceId() { return instanceId; }
 
     final void resizeIfNeeded(int oldNumClients, int newNumClients, boolean newHasPlayerInfo) {
         if (buffer == null) {
             if (newHasPlayerInfo) {
-                createNewBuffer(newNumClients);
+                createNewBuffers(newNumClients);
             } else {
-                createNewBuffer(0);
+                createNewBuffers(0);
             }
             return;
         }
 
         boolean hasPlayerInfo = hasPlayerInfo();
         if (newHasPlayerInfo && !hasPlayerInfo) {
-            createNewBuffer(newNumClients);
+            createNewBuffers(newNumClients);
             return;
         }
 
         if (!newHasPlayerInfo && hasPlayerInfo) {
             if (oldNumClients > 0) {
-                resizeBuffer(0);
+                resizeBuffers(0);
             }
             return;
         }
 
         if (hasPlayerInfo) {
             if (oldNumClients < newNumClients) {
-                resizeBuffer(newNumClients);
+                resizeBuffers(newNumClients);
                 return;
             }
             if (oldNumClients > 8 && oldNumClients / newNumClients > 2) {
-                resizeBuffer(newNumClients);
+                resizeBuffers(newNumClients);
                 return;
             }
         }
     }
 
     final void wrapBuffers(char[] newCharsBuffer, byte[] playersInfoUpdateMask) {
+        // Since the scoreboard data is aware of colored tokens, we can't just set buffers and return
+        int oldNumClients = 0;
+        boolean oldHasPlayerInfo = false;
+        if (this.buffer != null) {
+            oldNumClients = this.getNumClientsValue();
+            oldHasPlayerInfo = this.hasPlayerInfo();
+        }
+
         this.buffer = newCharsBuffer;
         this.playersInfoUpdateMask = playersInfoUpdateMask;
+
+        int numClients = getNumClientsValue();
+        boolean hasPlayerInfo = hasPlayerInfo();
+
+        // Check token buffers capacity
+        if (this.coloredTokens != null) {
+            if (oldHasPlayerInfo) {
+                if (hasPlayerInfo) {
+                    if (oldNumClients < numClients) {
+                        coloredTokens = newColoredTokensBuffer(numClients);
+                    } else if (oldNumClients > 8 && oldNumClients > numClients * 2) {
+                        // Shrink buffers in this case
+                        coloredTokens = newColoredTokensBuffer(numClients);
+                    }
+                } else {
+                    if (coloredTokens.length > TOKENS_PLAYER_DATA_OFFSET) {
+                        // Shrink buffers in this case
+                        coloredTokens = newColoredTokensBuffer(0);
+                    }
+                }
+            } else if (hasPlayerInfo) {
+                coloredTokens = newColoredTokensBuffer(numClients);
+            }
+        } else {
+            this.coloredTokens = newColoredTokensBuffer(numClients);
+        }
+
+        // Force tokens updates
+        checkServerDataTokensUpdates(~0);
+        if (hasPlayerInfo && numClients > 0) {
+            updatePlayerNamesTokens();
+        }
     }
 
     private int newMainBufferSize(int newNumClients) {
         return (PLAYERS_DATA_OFFSET - SCOREBOARD_DATA_OFFSET) + newNumClients * PLAYER_DATA_STRIDE;
     }
 
-    private void createNewBuffer(int numClients) {
+    private byte[] newColoredTokensBuffer(int newNumClients) {
+        return new byte[TOKENS_PLAYER_DATA_OFFSET + newNumClients * TOKENS_PLAYER_DATA_STRIDE];
+    }
+
+    private void createNewBuffers(int numClients) {
         int newBufferSize = newMainBufferSize(numClients);
         buffer = new char[newBufferSize];
     }
 
-    private void resizeBuffer(int newNumClients) {
+    private void resizeBuffers(int newNumClients) {
         int newBufferSize = newMainBufferSize(newNumClients);
         char[] newBuffer = new char[newBufferSize];
         java.lang.System.arraycopy(buffer, 0, newBuffer, 0, Math.min(buffer.length, newBufferSize));
         buffer = newBuffer;
+
+        byte[] newColoredTokens = newColoredTokensBuffer(newNumClients);
+        int tokensBytesToCopy = Math.min(coloredTokens.length, newColoredTokens.length);
+        java.lang.System.arraycopy(coloredTokens, 0, newColoredTokens, 0, tokensBytesToCopy);
+        coloredTokens = newColoredTokens;
     }
 
     byte[] playersInfoUpdateMask;
+
+    class ColoredTokensParser extends AbstractColoredTokensParser {
+        int tokensArrayOffset;
+
+        @Override
+        protected void addWrappedToken(CharSequence underlying, int startIndex, int length, byte colorNum) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void addWrappedToken(String underlying, int startIndex, int length, byte colorNum) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void addWrappedToken(CharArrayView underlying, int startIndex, int length, byte colorNum) {
+            byte[] coloredTokens = ScoreboardData.this.coloredTokens;
+            coloredTokens[tokensArrayOffset++] = (byte)startIndex;
+            coloredTokens[tokensArrayOffset++] = (byte)length;
+            coloredTokens[tokensArrayOffset++] = colorNum;
+        }
+    }
+
+    private final ColoredTokensParser parser = new ColoredTokensParser();
+    /**
+     * We assume nobody is going to use {@link ScoreboardData} from threads different from UI one.
+     */
+    private static final CharArrayView tmpCharArrayView = new CharArrayView();
+
+    private void parseColoredTokens(CharArrayView view, int entryOffset, int viewLengthOffset) {
+        parser.tokensArrayOffset = entryOffset + 1;
+        parser.parseRemovingColors(view);
+        if (BuildConfig.DEBUG) {
+            int bytesWritten = parser.tokensArrayOffset - entryOffset - 1;
+            if ((bytesWritten % 3) != 0) {
+                throw new AssertionError();
+            }
+            if (bytesWritten < 0 || bytesWritten > Byte.MAX_VALUE) {
+                throw new AssertionError();
+            }
+        }
+        coloredTokens[entryOffset] = (byte)(parser.tokensArrayOffset - entryOffset - 1);
+        // The view is a temporary object.
+        // Its length property has been modifying after stripping circumflex escape sequences.
+        // We have to modify buffer data as well to make the changes get saved
+        buffer[viewLengthOffset - SCOREBOARD_DATA_OFFSET] = (char)view.length();
+    }
+
+    void checkServerDataTokensUpdates(int serverInfoUpdateMask) {
+        if ((serverInfoUpdateMask & UPDATE_FLAG_SERVER_NAME) != 0) {
+            parseColoredTokens(getServerName(tmpCharArrayView), TOKENS_SERVER_NAME_OFFSET, SERVER_NAME_OFFSET);
+        }
+
+        if ((serverInfoUpdateMask & UPDATE_FLAG_ALPHA_NAME) != 0) {
+            parseColoredTokens(getAlphaName(tmpCharArrayView), TOKENS_ALPHA_NAME_OFFSET, ALPHA_NAME_OFFSET);
+        }
+
+        if ((serverInfoUpdateMask & UPDATE_FLAG_BETA_NAME) != 0) {
+            parseColoredTokens(getBetaName(tmpCharArrayView), TOKENS_BETA_NAME_OFFSET, BETA_NAME_OFFSET);
+        }
+    }
+
+    void updatePlayerNamesTokens() {
+        for (int i = 0, numClients = getNumClientsValue(); i < numClients; ++i) {
+            if ((playersInfoUpdateMask[i] & PLAYERINFO_UPDATE_FLAG_NAME) == 0) {
+                continue;
+            }
+            int entryOffset = TOKENS_PLAYER_DATA_OFFSET + i * TOKENS_PLAYER_DATA_STRIDE;
+            int viewLengthOffset = PLAYERS_DATA_OFFSET + i * PLAYER_DATA_STRIDE + PLAYER_NAME_RELATIVE_OFFSET;
+            parseColoredTokens(getPlayerName(i, tmpCharArrayView), entryOffset, viewLengthOffset);
+        }
+    }
 }

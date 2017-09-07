@@ -5,6 +5,7 @@ import static com.github.qfusion.fakeclient.ScoreboardData.*;
 import junit.framework.TestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -436,6 +437,83 @@ public class ScoreboardDataTest extends TestCase {
             assertEquals("Player(" + i + ")", scoreboardData.getPlayerName(i).toString());
             assertEquals(72 - i, scoreboardData.getPlayerScoreValue(i));
             assertEquals("" + (72 - i), scoreboardData.getPlayerScoreChars(i).toString());
+        }
+    }
+
+    private static List<ColoredToken> reconstructTokens(CharArrayView charsView, ByteArrayView tokensView) {
+        if (BuildConfig.DEBUG) {
+            if ((tokensView.getLength() % 3) != 0) {
+                throw new AssertionError();
+            }
+        }
+
+        List<ColoredToken> result = new ArrayList<ColoredToken>();
+        byte[] packedTokens = tokensView.getArray();
+        for (int i = tokensView.getArrayOffset(); i < tokensView.getArrayOffset() + tokensView.getLength(); i += 3) {
+            Color color = Color.values()[packedTokens[i + 2]];
+            result.add(new ColoredToken(charsView, packedTokens[i], packedTokens[i + 1], color));
+        }
+
+        return result;
+    }
+
+    public void testUpdateServerNameTokens() {
+        ScoreboardData scoreboardData = new ScoreboardData();
+        char[] initialBuffer = newBufferForPlayersCount(0);
+        initialBuffer[HAS_PLAYER_INFO_OFFSET - SCOREBOARD_DATA_OFFSET] = 0;
+
+        setServerName(initialBuffer, "^1W^2a^3r^4s^5o^6w ^7Server^0");
+        setAlphaName(initialBuffer, "^8ALPHA^7");
+        setBetaName(initialBuffer, "^9BETA^7");
+
+        scoreboardData.wrapBuffers(initialBuffer, new byte[MAX_PLAYERS]);
+
+        // There is no need to make tokens update explicitly, it is performed in the wrapBuffers() call
+
+        assertEquals("Warsow Server", scoreboardData.getServerName().toString());
+        assertEquals("ALPHA", scoreboardData.getAlphaName().toString());
+        assertEquals("BETA", scoreboardData.getBetaName().toString());
+
+        List<ColoredToken> serverNameTokens =
+            reconstructTokens(scoreboardData.getServerName(), scoreboardData.getServerNameTokens());
+        List<ColoredToken> alphaNameTokens =
+            reconstructTokens(scoreboardData.getAlphaName(), scoreboardData.getAlphaNameTokens());
+        List<ColoredToken> betaNameTokens =
+            reconstructTokens(scoreboardData.getBetaName(), scoreboardData.getBetaNameTokens());
+
+        assertEquals(7, serverNameTokens.size());
+        assertEquals("Server", serverNameTokens.get(6).toString());
+
+        assertEquals(1, alphaNameTokens.size());
+        assertEquals("ALPHA", alphaNameTokens.get(0).toString());
+
+        assertEquals(1, betaNameTokens.size());
+        assertEquals("BETA", betaNameTokens.get(0).toString());
+    }
+
+    public void testUpdatePlayerNamesTokens() {
+        ScoreboardData scoreboardData = new ScoreboardData();
+        char[] initialBuffer = newBufferForPlayersCount(7);
+        initialBuffer[HAS_PLAYER_INFO_OFFSET - SCOREBOARD_DATA_OFFSET] = 1;
+
+        for (int i = 0; i < 7; ++i) {
+            setPlayerName(i, initialBuffer, "^0Player^" + i + "(" + i + ")^0");
+        }
+
+        byte[] playersInfoUpdateMask = new byte[MAX_PLAYERS];
+        // Make sure masks for each player is set.
+        // We do not do it for other tests since they there are no tokens in supplied strings
+        Arrays.fill(playersInfoUpdateMask, Byte.MAX_VALUE);
+        scoreboardData.wrapBuffers(initialBuffer, playersInfoUpdateMask);
+
+        for (int i = 0; i < 7; ++i) {
+            CharArrayView actualName = scoreboardData.getPlayerName(i);
+            String expectedName = "Player(" + i + ")";
+            assertEquals(expectedName, actualName.toString());
+            List<ColoredToken> tokens = reconstructTokens(actualName, scoreboardData.getPlayerNameTokens(i));
+            assertEquals(2, tokens.size());
+            assertEquals("Player", tokens.get(0).toString());
+            assertEquals("(" + i + ")", tokens.get(1).toString());
         }
     }
 }

@@ -80,6 +80,7 @@ final class DeltaUpdateMessage {
     int numClients;
     boolean hasPlayerInfo;
     boolean werePlayerInfoUpdates;
+    boolean werePlayerNameUpdates;
 
     DeltaUpdateMessage() {}
 }
@@ -190,12 +191,12 @@ class ScoreboardUpdatesDeltaEncoder {
         byteIoBuffer.get(tmpByteArray, 0, numClients);
 
         final char[] deltaChars = message.deltaChars;
-        boolean wereUpdates = false;
+        byte anyUpdatesFlags = 0;
         for (int i = 0; i < numClients; ++i) {
             if (tmpByteArray[i] == 0) {
                 continue;
             }
-            wereUpdates = true;
+            anyUpdatesFlags |= tmpByteArray[i];
             int flags = tmpByteArray[i] & 0xFF;
             int baseOffset = PLAYERS_DATA_OFFSET + i * PLAYER_DATA_STRIDE;
             final int[] playerInfoUpdatesFlags = PLAYERINFO_STRING_UPDATES_FLAGS;
@@ -219,6 +220,7 @@ class ScoreboardUpdatesDeltaEncoder {
             }
         }
 
+        boolean wereUpdates = anyUpdatesFlags != 0;
         if (wereUpdates) {
             message.playersUpdateBytes = new byte[numClients];
             java.lang.System.arraycopy(tmpByteArray, 0, message.playersUpdateBytes, 0, numClients);
@@ -227,6 +229,7 @@ class ScoreboardUpdatesDeltaEncoder {
         }
 
         message.werePlayerInfoUpdates = wereUpdates;
+        message.werePlayerNameUpdates = (anyUpdatesFlags & PLAYERINFO_UPDATE_FLAG_NAME) != 0;
     }
 
     /**

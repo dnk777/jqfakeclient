@@ -2,8 +2,9 @@ package com.github.qfusion.fakeclient;
 
 /**
  * A {@link CharSequence} that wraps a region of a char array.
+ * @see ByteArrayView for a similar wrapper.
  */
-final class CharArrayView implements CharSequence {
+public final class CharArrayView implements CharSequence {
     char[] arrayRef;
     int arrayOffset;
     int length;
