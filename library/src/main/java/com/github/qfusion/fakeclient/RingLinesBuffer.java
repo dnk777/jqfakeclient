@@ -1,5 +1,7 @@
 package com.github.qfusion.fakeclient;
 
+import android.support.annotation.VisibleForTesting;
+
 import java.util.NoSuchElementException;
 
 import static java.lang.System.arraycopy;
@@ -8,7 +10,16 @@ import static java.lang.System.arraycopy;
  * A ring buffer for building and storing received character lines.
  */
 public final class RingLinesBuffer {
-    CharArrayView[] lines;
+    /**
+     * An i-th element contains a reference to char[] array of an i-th line
+     */
+    char[][] arrayRefs;
+    /**
+     * An element #(i * 2 + 0) contains an offset of a line data inside arrayRefs[i]
+     * An element #(i * 2 + 1) contains an length of a line data chunk inside arrayRefs[i]
+     */
+    int[] offsetsAndLengths;
+
     boolean isFrontLineCompleted;
 
     char[] currCharsBuffer;
@@ -24,7 +35,7 @@ public final class RingLinesBuffer {
     /**
      * Do not confuse with {@link java.util.Iterator}.
      */
-    public class OptimizedIterator {
+    public final class OptimizedIterator {
         int i;
         int index;
 
@@ -36,11 +47,18 @@ public final class RingLinesBuffer {
             return i != linesCount;
         }
 
-        public CharArrayView next() {
-            CharArrayView result = lines[index];
+        public CharArrayView next(CharArrayView reuse) {
+            reuse.arrayRef = arrayRefs[index];
+            reuse.arrayOffset = offsetsAndLengths[index * 2 + 0];
+            reuse.length = offsetsAndLengths[index * 2 + 1];
             i += 1;
             index = nextIndex(index);
-            return result;
+            return reuse;
+        }
+
+        @VisibleForTesting(otherwise = VisibleForTesting.NONE)
+        public CharArrayView next() {
+            return next(new CharArrayView());
         }
 
         public void rewind() {
@@ -53,29 +71,47 @@ public final class RingLinesBuffer {
         return new OptimizedIterator();
     }
 
-    public CharArrayView front() {
+    public CharArrayView front(CharArrayView reuse) {
         if (linesCount == 0) {
             throw new NoSuchElementException();
         }
-        return lines[frontIndex];
+        reuse.arrayRef = arrayRefs[frontIndex];
+        reuse.arrayOffset = offsetsAndLengths[frontIndex * 2 + 0];
+        reuse.length = offsetsAndLengths[frontIndex * 2 + 1];
+        return reuse;
     }
 
-    public CharArrayView back() {
+    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
+    public CharArrayView front() {
+        return front(new CharArrayView());
+    }
+
+    public CharArrayView back(CharArrayView reuse) {
         if (linesCount == 0) {
             throw new NoSuchElementException();
         }
-        return lines[backIndex];
+        reuse.arrayRef = arrayRefs[backIndex];
+        reuse.arrayOffset = offsetsAndLengths[backIndex * 2 + 0];
+        reuse.length = offsetsAndLengths[backIndex * 2 + 1];
+        return reuse;
+    }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
+    public CharArrayView back() {
+        return back(new CharArrayView());
     }
 
     RingLinesBuffer(int capacity) {
-        lines = new CharArrayView[capacity + 1];
+        arrayRefs = new char[capacity + 1][];
+        offsetsAndLengths = new int[2 * capacity + 2];
         defaultBufferSize = 1024;
         this.currCharsBuffer = new char[defaultBufferSize];
         resetValues();
     }
 
     RingLinesBuffer(int capacity, int defaultBufferSize) {
-        lines = new CharArrayView[capacity + 1];
+        arrayRefs = new char[capacity + 1][];
+        offsetsAndLengths = new int[2 * capacity + 2];
         this.defaultBufferSize = defaultBufferSize;
         this.currCharsBuffer = new char[defaultBufferSize];
         resetValues();
@@ -91,7 +127,7 @@ public final class RingLinesBuffer {
     }
 
     public int capacity() {
-        return lines.length - 1;
+        return arrayRefs.length - 1;
     }
 
     public int size() {
@@ -105,14 +141,14 @@ public final class RingLinesBuffer {
     public void clear() {
         int index = backIndex;
         for (int i = 0; i < linesCount; ++i) {
-            lines[index] = null;
+            arrayRefs[index] = null;
             index = nextIndex(index);
         }
         resetValues();
     }
 
     protected final int nextIndex(int index) {
-        return (index + 1) % lines.length;
+        return (index + 1) % arrayRefs.length;
     }
 
     protected final void appendLinePart(String string) {
@@ -120,13 +156,10 @@ public final class RingLinesBuffer {
     }
 
     protected void appendLinePart(String string, int offset, int length) {
-        CharArrayView currLine = lines[freeLineIndex];
-        if (currLine == null) {
-            currLine = new CharArrayView();
-            currLine.arrayRef = currCharsBuffer;
-            currLine.arrayOffset = currCharsBufferOffset;
-            currLine.length = 0;
-            lines[freeLineIndex] = currLine;
+        if (arrayRefs[freeLineIndex] == null) {
+            arrayRefs[freeLineIndex] = currCharsBuffer;
+            offsetsAndLengths[freeLineIndex * 2 + 0] = currCharsBufferOffset;
+            offsetsAndLengths[freeLineIndex * 2 + 1] = 0;
             isFrontLineCompleted = false;
         }
 
@@ -140,40 +173,44 @@ public final class RingLinesBuffer {
             }
             currCharsBufferOffset = 0;
             // Copy existing data to the new buffer in this case
-            if (currLine.length > 0) {
-                arraycopy(currLine.arrayRef, currLine.arrayOffset, currCharsBuffer, 0, currLine.length);
-                currCharsBufferOffset = currLine.length;
+            int currLineLength = offsetsAndLengths[freeLineIndex * 2 + 1];
+            if (currLineLength > 0) {
+                int currLineOffset = offsetsAndLengths[freeLineIndex * 2 + 0];
+                arraycopy(arrayRefs[freeLineIndex], currLineOffset, currCharsBuffer, 0, currLineLength);
+                currCharsBufferOffset = currLineLength;
             }
-            currLine.arrayRef = currCharsBuffer;
-            currLine.arrayOffset = 0;
+            arrayRefs[freeLineIndex] = currCharsBuffer;
+            offsetsAndLengths[freeLineIndex * 2 + 0] = 0;
         }
 
         // Avoid member access in a performance-sensitive loop
-        char[] dest = currLine.arrayRef;
+        char[] dest = arrayRefs[freeLineIndex];
         int destOffset = currCharsBufferOffset;
         for (int i = 0; i < length; ++i) {
             dest[destOffset + i] = string.charAt(offset + i);
         }
 
-        currLine.length += length;
+        offsetsAndLengths[freeLineIndex * 2 + 1] += length;
         currCharsBufferOffset += length;
 
         if (BuildConfig.DEBUG) {
+            int currLineOffset = offsetsAndLengths[freeLineIndex * 2 + 0];
+            int currLineLength = offsetsAndLengths[freeLineIndex * 2 + 1];
             // Test assertions here, otherwise we get exceptions later somewhere else
             boolean wereErrors = false;
-            if (currLine.arrayOffset < 0 || currLine.arrayOffset >= currLine.arrayRef.length) {
+            if (currLineOffset < 0 || currLineOffset >= arrayRefs[freeLineIndex].length) {
                 wereErrors = true;
-            } else if (currLine.length < 0 || currLine.length > currLine.arrayRef.length) {
+            } else if (currLineLength < 0 || currLineLength > arrayRefs[freeLineIndex].length) {
                 wereErrors = true;
-            } else if (currLine.arrayOffset + currLine.length > currLine.arrayRef.length) {
+            } else if (currLineOffset + currLineLength > arrayRefs[freeLineIndex].length) {
                 wereErrors = true;
             }
             if (wereErrors) {
                 StringBuilder sb = new StringBuilder();
                 sb.append("Malformed bounds: ");
-                sb.append("currLine.arrayOffset=").append(currLine.arrayOffset).append(", ");
-                sb.append("currLine.length=").append(currLine.length).append(", ");
-                sb.append("currLine.arrayRef.length=").append(currLine.arrayRef.length);
+                sb.append("curr line array offset = ").append(currLineOffset).append(", ");
+                sb.append("curr line length = ").append(currLineLength).append(", ");
+                sb.append("curr line array ref length = ").append(arrayRefs[freeLineIndex].length);
                 throw new AssertionError(sb.toString());
             }
         }
@@ -188,11 +225,11 @@ public final class RingLinesBuffer {
     protected boolean completeLineBuilding() {
         if (isFrontLineCompleted) {
             if (BuildConfig.DEBUG) {
-                if (lines[freeLineIndex] != null) {
+                if (arrayRefs[freeLineIndex] != null) {
                     throw new AssertionError();
                 }
             }
-            lines[freeLineIndex] = CharArrayView.EMPTY;
+            arrayRefs[freeLineIndex] = CharArrayView.EMPTY.arrayRef;
         }
         isFrontLineCompleted = true;
         linesCount++;
@@ -204,7 +241,7 @@ public final class RingLinesBuffer {
             return false;
         }
 
-        lines[backIndex] = null;
+        arrayRefs[backIndex] = null;
         backIndex = nextIndex(backIndex);
         linesCount--;
         return true;

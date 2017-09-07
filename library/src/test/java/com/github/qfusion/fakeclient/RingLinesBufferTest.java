@@ -207,8 +207,8 @@ public class RingLinesBufferTest extends TestCase {
         assertEquals(0, buffer.size());
         assertEquals(3, buffer.capacity());
 
-        for (CharArrayView line: buffer.lines) {
-            assertNull(line);
+        for (char[] arrayRef: buffer.arrayRefs) {
+            assertNull(arrayRef);
         }
 
         // Check whether the buffer can be reused after clear()
