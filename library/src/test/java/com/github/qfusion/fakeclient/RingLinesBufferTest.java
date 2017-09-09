@@ -2,6 +2,9 @@ package com.github.qfusion.fakeclient;
 
 import junit.framework.TestCase;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class RingLinesBufferTest extends TestCase {
     private final String[] testLines = {
         "Lorem ipsum dolor sit amet, consectetur adipiscing elit, " +
@@ -272,5 +275,93 @@ public class RingLinesBufferTest extends TestCase {
         assertEquals(true, iterator.hasNext());
         assertEquals(testLines[3], iterator.next().toString());
         assertEquals(false, iterator.hasNext());
+    }
+
+    private List<ColoredToken> reconstructTokens(CharArrayView charsView, BufferLineTokensView tokensView) {
+        List<ColoredToken> result = new ArrayList<ColoredToken>();
+        if (tokensView.getLength() % 2 != 0) {
+            throw new AssertionError("Tokens view.length: " + tokensView.getLength());
+        }
+        int[] packedTokens = tokensView.getArray();
+        for (int i = tokensView.getArrayOffset(); i < tokensView.getArrayOffset() + tokensView.getLength(); i += 2) {
+            int tokenOffset = packedTokens[i + 0];
+            int tokenLength = packedTokens[i + 1] & ~0xF0000000;
+            Color color = Color.values()[(packedTokens[i + 1] & 0xF0000000) >>> 28];
+            result.add(new ColoredToken(charsView, tokenOffset, tokenLength, color));
+        }
+        return result;
+    }
+
+    public void testColoredTokensHandling() {
+        RingLinesBuffer buffer = new RingLinesBuffer(3);
+        assertEquals(3, buffer.capacity());
+
+        CharArrayView charsView = new CharArrayView();
+        BufferLineTokensView tokensView = new BufferLineTokensView();
+
+        // Add a line having a single token
+        buffer.appendLinePart("^3(v) Good game!^7");
+        buffer.completeLineBuilding();
+
+        List<ColoredToken> tokens;
+
+        buffer.front(charsView, tokensView);
+        assertEquals("(v) Good game!", charsView.toString());
+        tokens = reconstructTokens(charsView, tokensView);
+        assertEquals(1, tokens.size());
+        assertEquals("(v) Good game!", tokens.get(0).toString());
+
+        buffer.back(charsView, tokensView);
+        assertEquals("(v) Good game!", charsView.toString());
+        tokens = reconstructTokens(charsView, tokensView);
+        assertEquals(1, tokens.size());
+        assertEquals("(v) Good game!", tokens.get(0).toString());
+        assertEquals(Color.values()[3], tokens.get(0).getColor());
+
+        // Should not allocate an array for a single token
+        assertEquals(0, buffer.frontIndex);
+        assertEquals(0, buffer.backIndex);
+        assertNull(buffer.coloredTokens[0]);
+
+        // Add a completely empty line
+        buffer.completeLineBuilding();
+
+        // Add an empty line without any contents aside a single color escape sequence
+        buffer.appendLinePart("^3");
+        buffer.completeLineBuilding();
+
+        // Add a line having multiple tokens
+        buffer.appendLinePart("^3Aha cheers guys! ^8Enjoy! ^5And thanks again!^7");
+        buffer.completeLineBuilding();
+
+        RingLinesBuffer.OptimizedIterator iterator = buffer.optimizedIterator();
+
+        assertTrue(iterator.hasNext());
+        iterator.next(charsView, tokensView);
+        assertEquals("", charsView.toString());
+        assertEquals(0, reconstructTokens(charsView, tokensView).size());
+
+        assertTrue(iterator.hasNext());
+        iterator.next(charsView, tokensView);
+        assertEquals("", charsView.toString());
+        assertEquals(0, reconstructTokens(charsView, tokensView).size());
+
+        assertTrue(iterator.hasNext());
+        iterator.next(charsView, tokensView);
+        assertEquals("Aha cheers guys! Enjoy! And thanks again!", charsView.toString());
+
+        tokens = reconstructTokens(charsView, tokensView);
+        assertEquals(3, tokens.size());
+
+        assertEquals("Aha cheers guys! ", tokens.get(0).toString());
+        assertEquals(Color.values()[3], tokens.get(0).getColor());
+
+        assertEquals("Enjoy! ", tokens.get(1).toString());
+        assertEquals(Color.values()[8], tokens.get(1).getColor());
+
+        assertEquals("And thanks again!", tokens.get(2).toString());
+        assertEquals(Color.values()[5], tokens.get(2).getColor());
+
+        assertFalse(iterator.hasNext());
     }
 }

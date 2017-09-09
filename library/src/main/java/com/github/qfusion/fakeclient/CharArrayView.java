@@ -3,6 +3,7 @@ package com.github.qfusion.fakeclient;
 /**
  * A {@link CharSequence} that wraps a region of a char array.
  * @see ByteArrayView for a similar wrapper.
+ * @see BufferLineTokensView for a similar wrapper.
  */
 public final class CharArrayView implements CharSequence {
     char[] arrayRef;
