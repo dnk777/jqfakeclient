@@ -4,6 +4,14 @@ public class FeedingUiThreadClientListener extends NativeBridgeClientListener {
     protected MessagePipe uiThreadPipe;
     protected ClientListener uiThreadListener;
 
+    public final ClientListener getUiThreadListener() {
+        return uiThreadListener;
+    }
+
+    public final void setUiThreadListener(ClientListener listener) {
+        this.uiThreadListener = listener;
+    }
+
     public FeedingUiThreadClientListener(MessagePipe uiThreadPipe, ClientListener uiThreadListener) {
         this.uiThreadPipe = uiThreadPipe;
         this.uiThreadListener = uiThreadListener;

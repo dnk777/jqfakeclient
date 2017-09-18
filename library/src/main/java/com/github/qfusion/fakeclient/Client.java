@@ -17,6 +17,7 @@ public class Client {
 
     long nativeClient;
     private NativeBridgeConsole console;
+    private NativeBridgeClientListener listener;
 
     private Charset charset = Charset.forName("UTF-8");
 
@@ -24,6 +25,9 @@ public class Client {
         this.nativeClient = nativeClient;
         this.console = console;
     }
+
+    public final NativeBridgeConsole getConsole() { return console; }
+    public final NativeBridgeClientListener getListener() { return listener; }
 
     private static native void nativeSetListener(long nativeClient, NativeBridgeClientListener listener);
     private static native void nativeExecuteCommand(long nativeClient, byte[] commandUtf8Bytes);

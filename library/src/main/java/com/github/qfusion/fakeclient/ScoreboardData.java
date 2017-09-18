@@ -3,51 +3,51 @@ package com.github.qfusion.fakeclient;
 import android.support.annotation.VisibleForTesting;
 
 public class ScoreboardData {
-    static final int PLAYER_NAME_SIZE = 32;
-    static final int TEAM_NAME_SIZE = 32;
+    public static final int PLAYER_NAME_SIZE = 32;
+    public static final int TEAM_NAME_SIZE = 32;
 
     static final int UPDATE_CHARS_WRITTEN_OFFSET = 0;
     static final int UPDATE_HINT_READ_FULL_DATA_OFFSET = 2;
     static final int PLAYERS_UPDATE_MASK_OFFSET = 3;
 
-    static final int MAX_PLAYERS = 256;
+    public static final int MAX_PLAYERS = 256;
     static final int SCOREBOARD_DATA_OFFSET = PLAYERS_UPDATE_MASK_OFFSET + MAX_PLAYERS / 2 + 1;
 
     static final int HAS_PLAYER_INFO_OFFSET = SCOREBOARD_DATA_OFFSET;
     static final int ADDRESS_OFFSET = HAS_PLAYER_INFO_OFFSET + 1;
-    static final int ADDRESS_SIZE = 48;
+    public static final int ADDRESS_SIZE = 48;
 
     // All buffers for string values have an extra character for string length
     // Also there might be extra characters at the start that represent an additional numeric value.
     // These extra characters come first (if any), then comes the string length, then the actual string data
 
     static final int SERVER_NAME_OFFSET = ADDRESS_OFFSET + ADDRESS_SIZE + 1;
-    static final int SERVER_NAME_SIZE = 64;
+    public static final int SERVER_NAME_SIZE = 64;
 
     static final int MODNAME_OFFSET = SERVER_NAME_OFFSET + SERVER_NAME_SIZE + 1;
-    static final int MODNAME_SIZE = 32;
+    public static final int MODNAME_SIZE = 32;
 
     static final int GAMETYPE_OFFSET = MODNAME_OFFSET + MODNAME_SIZE + 1;
-    static final int GAMETYPE_SIZE = 32;
+    public static final int GAMETYPE_SIZE = 32;
 
     static final int MAPNAME_OFFSET = GAMETYPE_OFFSET + GAMETYPE_SIZE + 1;
-    static final int MAPNAME_SIZE = 32;
+    public static final int MAPNAME_SIZE = 32;
 
     static final int TIME_MINUTES_OFFSET = MAPNAME_OFFSET + MAPNAME_SIZE + 1;
     // java.lang.Integer.MIN_VALUE.toString().length = 11
-    static final int TIME_MINUTES_SIZE = 12;
+    public static final int TIME_MINUTES_SIZE = 12;
 
     // 2 extra bytes for a numeric value of the time minutes
     static final int LIMIT_MINUTES_OFFSET = TIME_MINUTES_OFFSET + TIME_MINUTES_SIZE + 1 + 2;
-    static final int LIMIT_MINUTES_SIZE = 12;
+    public static final int LIMIT_MINUTES_SIZE = 12;
 
     // 2 extra bytes for a numeric value of the limit minutes
     static final int TIME_SECONDS_OFFSET = LIMIT_MINUTES_OFFSET + LIMIT_MINUTES_SIZE + 1 + 2;
-    static final int TIME_SECONDS_SIZE = 4;
+    public static final int TIME_SECONDS_SIZE = 4;
 
     // 1 extra byte for a numeric value of the time seconds
     static final int LIMIT_SECONDS_OFFSET = TIME_SECONDS_OFFSET + TIME_SECONDS_SIZE + 1 + 1;
-    static final int LIMIT_SECONDS_SIZE = 4;
+    public static final int LIMIT_SECONDS_SIZE = 4;
 
     // 1 extra byte for a numeric value of the limit seconds
     static final int TIME_FLAGS_OFFSET = LIMIT_SECONDS_OFFSET + LIMIT_SECONDS_SIZE + 1 + 1;
@@ -62,34 +62,34 @@ public class ScoreboardData {
     static final int SCORE_OFFSET = TIME_FLAGS_OFFSET + 1;
 
     static final int ALPHA_NAME_OFFSET = SCORE_OFFSET;
-    static final int ALPHA_NAME_SIZE = TEAM_NAME_SIZE;
+    public static final int ALPHA_NAME_SIZE = TEAM_NAME_SIZE;
 
     static final int ALPHA_SCORE_OFFSET = ALPHA_NAME_OFFSET + ALPHA_NAME_SIZE + 1;
-    static final int ALPHA_SCORE_SIZE = 12;
+    public static final int ALPHA_SCORE_SIZE = 12;
 
     // These 2 extra bytes are for a numeric representation of the alpha score
     static final int BETA_NAME_OFFSET = ALPHA_SCORE_OFFSET + ALPHA_SCORE_SIZE + 1 + 2;
-    static final int BETA_NAME_SIZE = TEAM_NAME_SIZE;
+    public static final int BETA_NAME_SIZE = TEAM_NAME_SIZE;
 
     static final int BETA_SCORE_OFFSET = BETA_NAME_OFFSET + BETA_NAME_SIZE + 1;
-    static final int BETA_SCORE_SIZE = 12;
+    public static final int BETA_SCORE_SIZE = 12;
 
     // 2 extra bytes too
     static final int MAX_CLIENTS_OFFSET = BETA_SCORE_OFFSET + BETA_SCORE_SIZE + 1 + 2;
-    static final int MAX_CLIENTS_SIZE = 4;
+    public static final int MAX_CLIENTS_SIZE = 4;
 
     // This 1 extra byte is for a numeric representation of the max clients value
     static final int NUM_CLIENTS_OFFSET = MAX_CLIENTS_OFFSET + MAX_CLIENTS_SIZE + 1 + 1;
-    static final int NUM_CLIENTS_SIZE = 4;
+    public static final int NUM_CLIENTS_SIZE = 4;
 
     // 1 extra byte too
     static final int NUM_BOTS_OFFSET = NUM_CLIENTS_OFFSET + NUM_CLIENTS_SIZE + 1 + 1;
-    static final int NUM_BOTS_SIZE = 4;
+    public static final int NUM_BOTS_SIZE = 4;
 
     // 1 extra byte too
     static final int NEED_PASSWORD_OFFSET = NUM_BOTS_OFFSET + NUM_BOTS_SIZE + 1 + 1;
     // "yes" or "no"
-    static final int NEED_PASSWORD_SIZE = 4;
+    public static final int NEED_PASSWORD_SIZE = 4;
 
     // An offset of the following players data of variable size.
     // This value also equals the minimal size of the character buffer
@@ -97,11 +97,11 @@ public class ScoreboardData {
 
     // An offset from the start of the player data for an N-th player
     static final int PLAYER_PING_RELATIVE_OFFSET = 0;
-    static final int PLAYER_PING_SIZE = 6;
+    public static final int PLAYER_PING_SIZE = 6;
 
     // The 1 extra byte is for a numeric representation of the ping
     static final int PLAYER_SCORE_RELATIVE_OFFSET = PLAYER_PING_RELATIVE_OFFSET + PLAYER_PING_SIZE + 1 + 1;
-    static final int PLAYER_SCORE_SIZE = 12;
+    public static final int PLAYER_SCORE_SIZE = 12;
 
     // This field might contain color tokens
     // These 2 extra bytes are for a numeric representation of the player score
@@ -344,6 +344,8 @@ public class ScoreboardData {
     private int getTimeFlags() {
         return getNonNegativeByteFromBuffer(TIME_FLAGS_OFFSET - SCOREBOARD_DATA_OFFSET);
     }
+
+    public final boolean hasTimeFlags() { return getTimeFlags() != 0; }
 
     public final boolean isWarmup() { return (getTimeFlags() & TIME_FLAG_WARMUP) != 0; }
     public final boolean isCountdown() { return (getTimeFlags() & TIME_FLAG_COUNTDOWN) != 0; }
@@ -709,6 +711,8 @@ public class ScoreboardData {
     }
 
     byte[] playersInfoUpdateMask;
+
+    public final byte[] getPlayersInfoUpdateMask() { return playersInfoUpdateMask; }
 
     class ColoredTokensParser extends AbstractColoredTokensParser {
         int tokensArrayOffset;

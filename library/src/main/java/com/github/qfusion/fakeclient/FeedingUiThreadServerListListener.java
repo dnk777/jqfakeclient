@@ -16,6 +16,8 @@ public class FeedingUiThreadServerListListener extends NativeBridgeServerListLis
         this.pipeEndpoint = pipeEndpoint;
     }
 
+    public final ServerListListenerPipeEndpoint getPipeEndpoint() { return pipeEndpoint; }
+
     @Override
     public void onServerAdded(final int instanceId) {
         final char[] fullData = readFullBufferData();

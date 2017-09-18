@@ -33,6 +33,8 @@ public class RingBufferConsole extends NativeBridgeConsole {
 
     RingLinesBuffer buffer;
 
+    public final RingLinesBuffer getBuffer() { return buffer; }
+
     public RingBufferConsole(int capacity) {
         buffer = new RingLinesBuffer(capacity);
     }
