@@ -56,18 +56,33 @@ public final class RingLinesBuffer {
     public final class OptimizedIterator {
         int i;
         int index;
+        int stepIndexShift;
 
         public OptimizedIterator() {
-            rewind();
+            rewindForNextCalls();
         }
 
         public boolean hasNext() {
+            if (BuildConfig.DEBUG) {
+                if (stepIndexShift != +1) {
+                    throw new AssertionError("Use hasPrev() for backward iteration to avoid confusion");
+                }
+            }
+            return i != linesCount;
+        }
+
+        public boolean hasPrev() {
+            if (BuildConfig.DEBUG) {
+                if (stepIndexShift != -1) {
+                    throw new AssertionError("Use hasNext() for forward iteration to avoid confusion");
+                }
+            }
             return i != linesCount;
         }
 
         public CharArrayView next(CharArrayView reuse) {
             getCharArrayViewAt(index, reuse);
-            i += 1;
+            i += stepIndexShift;
             index = nextIndex(index);
             return reuse;
         }
@@ -75,8 +90,22 @@ public final class RingLinesBuffer {
         public void next(CharArrayView charsToReuse, BufferLineTokensView tokensViewToReuse) {
             getCharArrayViewAt(index, charsToReuse);
             getTokensViewAt(index, tokensViewToReuse);
-            i += 1;
+            i += stepIndexShift;
             index = nextIndex(index);
+        }
+
+        public CharArrayView prev(CharArrayView reuse) {
+            getCharArrayViewAt(index, reuse);
+            i -= stepIndexShift;
+            index = prevIndex(index);
+            return reuse;
+        }
+
+        public void prev(CharArrayView charsToReuse, BufferLineTokensView tokensViewToReuse) {
+            getCharArrayViewAt(index, charsToReuse);
+            getTokensViewAt(index, tokensViewToReuse);
+            i -= stepIndexShift;
+            index = prevIndex(index);
         }
 
         @VisibleForTesting(otherwise = VisibleForTesting.NONE)
@@ -84,9 +113,72 @@ public final class RingLinesBuffer {
             return next(new CharArrayView());
         }
 
+        @VisibleForTesting(otherwise = VisibleForTesting.NONE)
+        public CharArrayView prev() {
+            return prev(new CharArrayView());
+        }
+
+        public boolean skipNext(int notMoreThan) {
+            if (notMoreThan < 0) {
+                throw new IllegalArgumentException("notMoreThan " + notMoreThan + " < 0");
+            }
+
+            int linesLeft = linesCount - i;
+            if (linesLeft <= 0) {
+                return false;
+            }
+
+            boolean result = linesLeft - notMoreThan >= 0;
+            int linesToSkip = result ? notMoreThan : linesLeft;
+            index = nthNextIndex(index, linesToSkip);
+            i += stepIndexShift * linesToSkip;
+            return result;
+        }
+
+        public boolean skipPrev(int notMoreThan) {
+            if (notMoreThan < 0) {
+                throw new IllegalArgumentException("notMoreThan " + notMoreThan + " < 0");
+            }
+
+            int linesLeft = linesCount - i;
+            if (linesLeft <= 0) {
+                return false;
+            }
+
+            boolean result = linesLeft - notMoreThan >= 0;
+            int linesToSkip = result ? notMoreThan : linesLeft;
+            index = nthPrevIndex(index, linesToSkip);
+            i -= stepIndexShift * linesToSkip;
+            return result;
+        }
+
+        /**
+         * @deprecated Use {@link #rewindForNextCalls()} instead
+         */
         public void rewind() {
+            rewindForNextCalls();
+        }
+
+        /**
+         * Once this method has been called, <code>next()</code> calls advance the iterator
+         * (leading to <code>hasNext()</code> yielding a final false value).
+         * <code>prev()</code> calls do the opposite allowing doing steps back in iteration.
+         */
+        public void rewindForNextCalls() {
             i = 0;
             index = backIndex;
+            stepIndexShift = +1;
+        }
+
+        /**
+         * Once this method has been called, <code>prev()</code> calls advance the iterator
+         * (leading to <code>hasPrev()</code> yielding a final false value).
+         * <code>next()</code> calls do the opposite allowing doing steps back in iteration.
+         */
+        public void rewindForPrevCalls() {
+            i = 0;
+            index = frontIndex;
+            stepIndexShift = -1;
         }
     }
 
@@ -221,6 +313,34 @@ public final class RingLinesBuffer {
 
     protected final int nextIndex(int index) {
         return (index + 1) % arrayRefs.length;
+    }
+
+    protected final int prevIndex(int index) {
+        return index > 0 ? index - 1 : 0;
+    }
+
+    protected final int nthNextIndex(int index, int n) {
+        if (BuildConfig.DEBUG && n > linesCount) {
+            throw new AssertionError("The n " + n + " value exceeds the lines count " + linesCount);
+        }
+
+        if (index + n < arrayRefs.length) {
+            return index + n;
+        }
+
+        return n - (arrayRefs.length - index);
+    }
+
+    protected final int nthPrevIndex(int index, int n) {
+        if (BuildConfig.DEBUG && n > linesCount) {
+            throw new AssertionError("The n " + n + " value exceeds the lines count " + linesCount);
+        }
+
+        if (index >= n) {
+            return index - n;
+        }
+
+        return arrayRefs.length - (n - index);
     }
 
     protected final void appendLinePart(String string) {

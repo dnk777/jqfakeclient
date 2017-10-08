@@ -242,10 +242,16 @@ public class RingLinesBufferTest extends TestCase {
         assertEquals(false, iterator.hasNext());
 
         buffer.completeLineBuilding();
-        iterator.rewind();
+
+        iterator.rewindForNextCalls();
         assertEquals(true, iterator.hasNext());
         assertEquals(testLines[0], iterator.next().toString());
         assertEquals(false, iterator.hasNext());
+
+        iterator.rewindForPrevCalls();
+        assertEquals(true, iterator.hasPrev());
+        assertEquals(testLines[0], iterator.prev().toString());
+        assertEquals(false, iterator.hasPrev());
     }
 
     public void testIterationOverFullBuffer() {
@@ -267,7 +273,7 @@ public class RingLinesBufferTest extends TestCase {
         assertEquals(testLines[3], iterator.next().toString());
         assertEquals(false, iterator.hasNext());
 
-        iterator.rewind();
+        iterator.rewindForNextCalls();
         assertEquals(true, iterator.hasNext());
         assertEquals(testLines[1], iterator.next().toString());
         assertEquals(true, iterator.hasNext());
@@ -275,6 +281,83 @@ public class RingLinesBufferTest extends TestCase {
         assertEquals(true, iterator.hasNext());
         assertEquals(testLines[3], iterator.next().toString());
         assertEquals(false, iterator.hasNext());
+
+        iterator.rewindForPrevCalls();
+        assertEquals(true, iterator.hasPrev());
+        assertEquals(testLines[3], iterator.prev().toString());
+        assertEquals(true, iterator.hasPrev());
+        assertEquals(testLines[2], iterator.prev().toString());
+        assertEquals(true, iterator.hasPrev());
+        assertEquals(testLines[1], iterator.prev().toString());
+        assertEquals(false, iterator.hasPrev());
+    }
+
+    public void testIteratorSkippingNext() {
+        RingLinesBuffer buffer = new RingLinesBuffer(3, 32);
+        assertEquals(3, buffer.capacity());
+        assertEquals(4, testLines.length);
+
+        for (String line: testLines) {
+            buffer.appendLinePart(line);
+            buffer.completeLineBuilding();
+        }
+
+        RingLinesBuffer.OptimizedIterator iterator = buffer.optimizedIterator();
+
+        iterator.rewindForNextCalls();
+        assertTrue(iterator.hasNext());
+        assertTrue(iterator.skipNext(0));
+        assertTrue(iterator.hasNext());
+        assertTrue(iterator.skipNext(1));
+        assertTrue(iterator.hasNext());
+        assertTrue(iterator.skipNext(2));
+        assertFalse(iterator.hasNext());
+        assertFalse(iterator.skipNext(1));
+        assertFalse(iterator.hasNext());
+
+        iterator.rewindForNextCalls();
+        assertTrue(iterator.skipNext(3));
+        assertFalse(iterator.hasNext());
+
+        iterator.rewindForNextCalls();
+        assertTrue(iterator.skipNext(2));
+        assertTrue(iterator.hasNext());
+        assertEquals(testLines[3], iterator.next().toString());
+        assertFalse(iterator.hasNext());
+    }
+
+    public void testIteratorSkippingPrev() {
+        RingLinesBuffer buffer = new RingLinesBuffer(3, 32);
+        assertEquals(3, buffer.capacity());
+        assertEquals(4, testLines.length);
+
+        for (String line: testLines) {
+            buffer.appendLinePart(line);
+            buffer.completeLineBuilding();
+        }
+
+        RingLinesBuffer.OptimizedIterator iterator = buffer.optimizedIterator();
+
+        iterator.rewindForPrevCalls();
+        assertTrue(iterator.hasPrev());
+        assertTrue(iterator.skipPrev(0));
+        assertTrue(iterator.hasPrev());
+        assertTrue(iterator.skipPrev(1));
+        assertTrue(iterator.hasPrev());
+        assertTrue(iterator.skipPrev(2));
+        assertFalse(iterator.hasPrev());
+        assertFalse(iterator.skipPrev(1));
+        assertFalse(iterator.hasPrev());
+
+        iterator.rewindForPrevCalls();
+        assertTrue(iterator.skipPrev(3));
+        assertFalse(iterator.hasPrev());
+
+        iterator.rewindForPrevCalls();
+        assertTrue(iterator.skipPrev(2));
+        assertTrue(iterator.hasPrev());
+        assertEquals(testLines[1], iterator.prev().toString());
+        assertFalse(iterator.hasPrev());
     }
 
     private List<ColoredToken> reconstructTokens(CharArrayView charsView, BufferLineTokensView tokensView) {

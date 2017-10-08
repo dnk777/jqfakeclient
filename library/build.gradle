@@ -3,7 +3,7 @@ apply plugin: 'com.github.dcendents.android-maven'
 
 // Artifact publishing settings. See also ../settings.gradle
 group = 'com.github.qfusion'
-version = '0.0.6'
+version = '0.0.7'
 
 android {
     compileSdkVersion 25
