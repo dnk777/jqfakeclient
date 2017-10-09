@@ -56,14 +56,6 @@ public class FeedingUiThreadConsole extends RingBufferConsole {
             super.completeLineBuilding();
         }
 
-        @Override
-        protected void notifyOfNewLine(boolean backLineRemoved) {
-            if (BuildConfig.DEBUG) {
-                expectUiThread();
-            }
-            super.notifyOfNewLine(backLineRemoved);
-        }
-
         class UiThreadNewBufferDataCaller implements Runnable {
             byte[] bytes;
             int offset;

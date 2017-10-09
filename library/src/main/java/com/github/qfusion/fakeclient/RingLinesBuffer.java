@@ -408,6 +408,10 @@ public final class RingLinesBuffer {
         }
     }
 
+    protected boolean willRemoveBackLine() {
+        return nextIndex(freeLineIndex) == backIndex;
+    }
+
     /**
      * Completes the current line building.
      * Advances the buffer front position.
@@ -415,6 +419,11 @@ public final class RingLinesBuffer {
      * @return True if a back line has been removed
      */
     protected boolean completeLineBuilding() {
+        boolean expectedReturnValue = false;
+        if (BuildConfig.DEBUG) {
+            expectedReturnValue = willRemoveBackLine();
+        }
+
         if (isFrontLineCompleted) {
             if (BuildConfig.DEBUG) {
                 if (arrayRefs[freeLineIndex] != null) {
@@ -433,7 +442,16 @@ public final class RingLinesBuffer {
         if (linesCount > 1) {
             frontIndex = nextIndex(frontIndex);
         }
-        freeLineIndex = nextIndex(freeLineIndex);
+
+        if (BuildConfig.DEBUG) {
+            freeLineIndex = nextIndex(freeLineIndex);
+            if (expectedReturnValue != (freeLineIndex == backIndex)) {
+                throw new AssertionError("Return value does not match willRemoveBackLine() result");
+            }
+        } else {
+            freeLineIndex = nextIndex(freeLineIndex);
+        }
+
         if (freeLineIndex != backIndex) {
             return false;
         }

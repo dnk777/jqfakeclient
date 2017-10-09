@@ -9,7 +9,8 @@ import java.nio.charset.Charset;
 public class RingBufferConsole extends NativeBridgeConsole {
 
     public interface Listener {
-        void onNewLine(boolean backLineRemoved);
+        void onAboutToRemoveBackLine();
+        void onNewLine();
     }
 
     public void setListener(Listener listener) {
@@ -105,14 +106,14 @@ public class RingBufferConsole extends NativeBridgeConsole {
         }
 
         protected void completeLineBuilding() {
-            notifyOfNewLine(buffer.completeLineBuilding());
-        }
-
-        protected void notifyOfNewLine(boolean backLineRemoved) {
             if (listener != null) {
-                listener.onNewLine(backLineRemoved);
+                if (buffer.willRemoveBackLine()) {
+                    listener.onAboutToRemoveBackLine();
+                }
+                buffer.completeLineBuilding();
             } else {
                 LogProxy.w(getClass().getCanonicalName(),"The listener is not set, cannot call listener.onNewLine()");
+                buffer.completeLineBuilding();
             }
         }
     }
